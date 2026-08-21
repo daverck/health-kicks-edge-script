@@ -1,0 +1,19 @@
+# Python generated files
+__pycache__/
+*.py[cod]
+*.egg-info/
+
+# Local environments and tooling
+.venv/
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+
+# Local configuration and secrets
+*.env
+!.env.example
+edge_bridge.env
+
+# OS/editor files
+.DS_Store
+.vscode/
