@@ -1,0 +1,18 @@
+[Unit]
+Description=HealthKicks serial to MQTT edge bridge
+After=network-online.target mosquitto.service
+Wants=network-online.target
+
+[Service]
+Type=simple
+User=pi
+Group=dialout
+WorkingDirectory=/opt/healthkicks_edge
+EnvironmentFile=-/etc/healthkicks_edge/healthkicks_edge.env
+ExecStart=/opt/healthkicks_edge/.venv/bin/python /opt/healthkicks_edge/healthkicks_edge.py
+Restart=always
+RestartSec=5
+Environment=PYTHONUNBUFFERED=1
+
+[Install]
+WantedBy=multi-user.target

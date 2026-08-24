@@ -1,7 +1,7 @@
 [project]
-name = "smartstride-edge"
+name = "healthkicks_edge"
 version = "0.1.0"
-description = "Serial-to-MQTT bridge for the SmartStride Raspberry Pi edge service"
+description = "Serial-to-MQTT bridge for the HealthKicks Raspberry Pi edge service"
 requires-python = ">=3.10"
 dependencies = [
     "paho-mqtt>=2.0,<3.0",

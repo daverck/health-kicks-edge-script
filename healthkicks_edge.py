@@ -13,6 +13,8 @@ from typing import Any
 
 import paho.mqtt.client as mqtt
 import serial
+from paho.mqtt import MQTTException
+from paho.mqtt.enums import CallbackAPIVersion
 from serial import SerialException
 
 
@@ -25,14 +27,23 @@ TELEMETRY_TOPIC = os.getenv(
 )
 COMMAND_TOPIC = os.getenv("EDGE_COMMAND_TOPIC", "healthkicks/commands/haptic")
 
-LOGGER = logging.getLogger("edge_bridge")
-
+LOGGER = logging.getLogger("healthkicks_edge")
 
 def normalize_command(payload: bytes) -> bytes:
-    """Return a serial command, ensuring the Arduino receives a line ending."""
-    command = payload.rstrip(b"\r\n")
-    return command + b"\n"
+    """Parse le payload JSON MQTT et le formate en 'VIB:<intensity>\\n' pour l'Arduino."""
+    try:
+        data = json.loads(payload.decode("utf-8"))
+        if not isinstance(data, dict) or "intensity" not in data:
+            LOGGER.warning("JSON invalide, champ 'intensity' manquant: %s", data)
+            return b"VIB:0\n"
 
+        intensity = int(data["intensity"])
+        intensity = max(0, min(255, intensity))
+        return f"VIB:{intensity}\n".encode("utf-8")
+
+    except (json.JSONDecodeError, UnicodeDecodeError, ValueError, TypeError) as error:
+        LOGGER.warning("Erreur de décodage du payload JSON haptique: %s", error)
+        return b"VIB:0\n"
 
 class SerialBridge:
     """Maintain the serial connection and bridge data in both directions."""
@@ -76,14 +87,14 @@ class SerialBridge:
                     reconnect_delay = min(reconnect_delay * 2, 30.0)
                     continue
 
-            try:
-                self._write_pending_commands()
-                line = self._serial.readline()
-                if line:
-                    self._publish_json(line)
-            except (SerialException, OSError) as error:
-                LOGGER.warning("Serial connection lost: %s", error)
-                self._close_serial()
+                try:
+                    self._write_pending_commands()
+                    line = self._serial.readline()
+                    if line:
+                        self._publish_json(line)
+                except (SerialException, OSError) as error:
+                    LOGGER.warning("Serial connection lost: %s", error)
+                    self._close_serial()
 
         self._close_serial()
 
@@ -126,8 +137,8 @@ class SerialBridge:
 
 def build_mqtt_client(serial_bridge: SerialBridge) -> mqtt.Client:
     client = mqtt.Client(
-        callback_api_version=mqtt.CallbackAPIVersion.VERSION2,
-        client_id=os.getenv("EDGE_MQTT_CLIENT_ID", "smartstride-edge"),
+        callback_api_version=CallbackAPIVersion.VERSION2,
+        client_id=os.getenv("EDGE_MQTT_CLIENT_ID", "healthkicks_edge"),
     )
 
     username = os.getenv("EDGE_MQTT_USERNAME")
@@ -187,7 +198,7 @@ def main() -> None:
         mqtt_client.loop_start()
         while not stop_event.wait(1.0):
             pass
-    except (OSError, mqtt.MQTTException):
+    except (OSError, MQTTException):
         LOGGER.exception("MQTT bridge stopped unexpectedly")
         raise
     finally:
