@@ -1,6 +1,16 @@
-# HealthKicks Edge Bridge
+# HealthKicks Edge Agent
 
-Bridge bidirectionnel entre un Arduino en série et Mosquitto local.
+Agent local pour Raspberry Pi : lecture IMU Arduino, détection d'anomalies
+IsolationForest et commandes haptiques via Mosquitto local.
+
+## Flux
+
+- `DATA:{"ax":...,"ay":...,"az":...,"gx":...,"gy":...,"gz":...}` depuis l'Arduino est validé puis enrichi avec un header Pydantic.
+- La télémétrie normalisée est publiée sur `healthkicks/v1/{device_id}/telemetry/raw`.
+- Une anomalie locale déclenche directement `CMD:VIB:255:500\n`, puis un événement QoS 1 sur `healthkicks/v1/{device_id}/events/fall`.
+- Les commandes MQTT validées (`intensity` 0-255, `duration_ms` 50-10000) deviennent `CMD:VIB:<intensity>:<duration_ms>\n`.
+- Les réponses Arduino sont `ACK:VIB:OK` ou `ERR:VIB:INVALID` et sont journalisées.
+- Le statut utilise un LWT offline et un heartbeat online sur `healthkicks/v1/{device_id}/status`.
 
 ## Installation sur Raspberry Pi
 
@@ -16,19 +26,16 @@ sudo systemctl daemon-reload
 sudo systemctl enable --now healthkicks_edge.service
 ```
 
-Le fichier `/etc/healthkicks_edge/healthkicks_edge.env` contient la connexion MQTT
-(hôte, port, identifiant et mot de passe éventuels), les topics et le port série.
+Le fichier `/etc/healthkicks_edge/healthkicks_edge.env` contient l'identité du device,
+la connexion MQTT, les topics, le port série et les paramètres IA.
 Il est volontairement exclu de Git. Le modèle est disponible dans
 `healthkicks_edge.env.example`.
 
 L'utilisateur du service doit avoir accès au port série via le groupe `dialout`.
 
-Par défaut, le service utilise `/dev/ttyUSB0`, `115200`, `localhost:1883`,
-`healthkicks/telemetry/raw` et `healthkicks/commands/haptic`. Ces valeurs peuvent
-être remplacées par les variables `EDGE_SERIAL_DEVICE`, `EDGE_SERIAL_BAUDRATE`,
-`EDGE_MQTT_HOST`, `EDGE_MQTT_PORT`, `EDGE_TELEMETRY_TOPIC` et
-`EDGE_COMMAND_TOPIC`. Les identifiants MQTT optionnels sont
-`EDGE_MQTT_USERNAME` et `EDGE_MQTT_PASSWORD`.
+Les paramètres sont documentés dans `healthkicks_edge.env.example`. Les commandes
+ont un TTL par défaut de 2 secondes et le modèle est conservé dans
+`/var/lib/healthkicks/model.joblib`.
 
 Consulter les logs avec:
 
@@ -40,5 +47,5 @@ sudo journalctl -u healthkicks_edge.service -f
 
 ```sh
 uv sync
-uv run python healthkicks_edge.py
+uv run python main.py
 ```
