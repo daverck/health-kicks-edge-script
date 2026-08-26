@@ -1,0 +1,22 @@
+#!/bin/sh
+set -eu
+
+if ! id healthkicks-edge >/dev/null 2>&1; then
+    adduser --system --group --no-create-home --disabled-login healthkicks-edge
+fi
+adduser healthkicks-edge dialout >/dev/null 2>&1 || true
+
+install -d -o healthkicks-edge -g healthkicks-edge -m 0750 /var/lib/healthkicks
+install -d -m 0750 /etc/healthkicks-edge-agent
+if [ ! -e /etc/healthkicks-edge-agent/agent.env ]; then
+    cp /etc/healthkicks-edge-agent/agent.env.example /etc/healthkicks-edge-agent/agent.env
+    chmod 0640 /etc/healthkicks-edge-agent/agent.env
+fi
+
+if command -v systemctl >/dev/null 2>&1; then
+    systemctl daemon-reload
+    systemctl enable healthkicks-edge.service >/dev/null 2>&1 || true
+    systemctl restart healthkicks-edge.service >/dev/null 2>&1 || systemctl start healthkicks-edge.service >/dev/null 2>&1 || true
+fi
+
+exit 0

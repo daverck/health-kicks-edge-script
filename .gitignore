@@ -13,6 +13,8 @@ __pycache__/
 *.env
 !.env.example
 healthkicks_edge.env
+*.deb
+.deb-build/
 
 # OS/editor files
 .DS_Store

@@ -12,28 +12,36 @@ IsolationForest et commandes haptiques via Mosquitto local.
 - Les réponses Arduino sont `ACK:VIB:OK` ou `ERR:VIB:INVALID` et sont journalisées.
 - Le statut utilise un LWT offline et un heartbeat online sur `healthkicks/v1/{device_id}/status`.
 
+## Construction du paquet Debian
+
+La construction s'effectue sur Debian ou Raspberry Pi OS, avec `dpkg-deb` installé :
+
+```sh
+sudo apt install dpkg-dev
+VERSION=0.1.0 ./build-deb.sh
+```
+
+Le fichier produit est `healthkicks-edge-agent_0.1.0_all.deb`. Le paquet utilise
+les dépendances Python Debian (`python3-paho-mqtt`, `python3-serial`,
+`python3-pydantic`, `python3-sklearn` et `python3-joblib`) et installe le code
+dans `/opt/healthkicks-edge-agent`.
+
 ## Installation sur Raspberry Pi
 
 ```sh
-sudo mkdir -p /opt/healthkicks_edge
-sudo cp healthkicks_edge.py pyproject.toml uv.lock /opt/healthkicks_edge/
-sudo uv sync --directory /opt/healthkicks_edge --frozen
-sudo install -d -m 0750 /etc/healthkicks_edge
-sudo install -m 0640 healthkicks_edge.env.example /etc/healthkicks_edge/healthkicks_edge.env
-sudoedit /etc/healthkicks_edge/healthkicks_edge.env
-sudo cp healthkicks_edge.service /etc/systemd/system/
-sudo systemctl daemon-reload
-sudo systemctl enable --now healthkicks_edge.service
+sudo apt install ./healthkicks-edge-agent_0.1.0_all.deb
+sudoedit /etc/healthkicks-edge-agent/agent.env
+sudo systemctl restart healthkicks-edge.service
 ```
 
-Le fichier `/etc/healthkicks_edge/healthkicks_edge.env` contient l'identité du device,
+Le fichier `/etc/healthkicks-edge-agent/agent.env` contient l'identité du device,
 la connexion MQTT, les topics, le port série et les paramètres IA.
 Il est volontairement exclu de Git. Le modèle est disponible dans
 `healthkicks_edge.env.example`.
 
 L'utilisateur du service doit avoir accès au port série via le groupe `dialout`.
 
-Les paramètres sont documentés dans `healthkicks_edge.env.example`. Les commandes
+Les paramètres sont documentés dans `debian/agent.env.example`. Les commandes
 ont un TTL par défaut de 2 secondes et le modèle est conservé dans
 `/var/lib/healthkicks/model.joblib`.
 

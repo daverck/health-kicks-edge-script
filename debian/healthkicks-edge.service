@@ -1,0 +1,20 @@
+[Unit]
+Description=HealthKicks edge agent
+After=network-online.target mosquitto.service
+Wants=network-online.target
+
+[Service]
+Type=simple
+User=healthkicks-edge
+Group=dialout
+SupplementaryGroups=dialout
+WorkingDirectory=/opt/healthkicks-edge-agent
+EnvironmentFile=-/etc/healthkicks-edge-agent/agent.env
+ExecStart=/usr/bin/python3 /opt/healthkicks-edge-agent/main.py
+Restart=always
+RestartSec=5
+Environment=PYTHONUNBUFFERED=1
+StateDirectory=healthkicks
+
+[Install]
+WantedBy=multi-user.target

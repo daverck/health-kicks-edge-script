@@ -1,0 +1,10 @@
+Package: healthkicks-edge-agent
+Version: 0.1.0
+Section: net
+Priority: optional
+Architecture: all
+Maintainer: HealthKicks <maintainers@healthkicks.local>
+Depends: python3 (>= 3.10), python3-joblib, python3-paho-mqtt, python3-pydantic (>= 2.0), python3-serial, python3-sklearn, adduser
+Description: HealthKicks local Raspberry Pi edge agent
+ Local edge agent for Arduino IMU and haptic actuator communication.
+ Performs local anomaly detection and communicates with a Mosquitto MQTT broker.
