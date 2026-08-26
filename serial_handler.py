@@ -94,24 +94,34 @@ class SerialHandler:
 
     def _handle_line(self, line: bytes) -> None:
         text = line.decode("utf-8", errors="replace").strip()
+        if not text:
+            return
+
         if text.startswith("ACK:") or text.startswith("ERR:"):
             LOGGER.info("arduino_response response=%s", text)
             if self._on_response is not None:
                 self._on_response(text)
             return
+
         if not text.startswith("DATA:"):
-            LOGGER.warning("serial_line_ignored")
+            LOGGER.warning("serial_line_ignored raw_line=%s", text)
             return
+
         import json
 
+        # Découpe proprement au premier ':' pour récupérer tout le JSON après 'DATA:'
+        _, _, payload_str = text.partition(":")
+        payload_str = payload_str.strip()
+
         try:
-            data = json.loads(text[5:])
+            data = json.loads(payload_str)
             if not isinstance(data, dict):
                 raise ValueError("IMU payload must be an object")
             axes = {axis: float(data[axis]) for axis in ("ax", "ay", "az", "gx", "gy", "gz")}
         except (ValueError, TypeError, KeyError, json.JSONDecodeError) as error:
-            LOGGER.warning("serial_data_invalid error=%s", error)
+            LOGGER.warning("serial_data_invalid error=%s raw_payload=%s", error, payload_str)
             return
+
         self._on_data(axes)
 
     def _close(self) -> None:

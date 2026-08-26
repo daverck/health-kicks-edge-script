@@ -88,3 +88,16 @@ def test_expired_command_is_dropped() -> None:
     time.sleep(2.05)
     handler._write_pending()
     assert fake_serial.writes == []
+
+
+def test_data_prefixed_serial_telemetry_is_accepted() -> None:
+    received: list[dict[str, float]] = []
+    handler = SerialHandler(
+        "/dev/null", 115200, threading.Event(), 2, received.append
+    )
+    handler._handle_line(
+        b'DATA:{"ax":0.96,"ay":0.09,"az":0.25,"gx":0.2,"gy":-0.1,"gz":-0.1}\n'
+    )
+    assert received == [
+        {"ax": 0.96, "ay": 0.09, "az": 0.25, "gx": 0.2, "gy": -0.1, "gz": -0.1}
+    ]

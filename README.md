@@ -5,11 +5,11 @@ IsolationForest et commandes haptiques via Mosquitto local.
 
 ## Flux
 
-- `DATA:{"ax":...,"ay":...,"az":...,"gx":...,"gy":...,"gz":...}` depuis l'Arduino est validé puis enrichi avec un header Pydantic.
+- Une ligne IMU au format `DATA:{"ax":...,"ay":...,"az":...,"gx":...,"gy":...,"gz":...}` depuis l'Arduino est validée puis enrichie avec un header Pydantic.
 - La télémétrie normalisée est publiée sur `healthkicks/v1/{device_id}/telemetry/raw`.
 - Une anomalie locale déclenche directement `CMD:VIB:255:500\n`, puis un événement QoS 1 sur `healthkicks/v1/{device_id}/events/fall`.
 - Les commandes MQTT validées (`intensity` 0-255, `duration_ms` 50-10000) deviennent `CMD:VIB:<intensity>:<duration_ms>\n`.
-- Les réponses Arduino sont `ACK:VIB:OK` ou `ERR:VIB:INVALID` et sont journalisées.
+- Les lignes de télémétrie Arduino utilisent le préfixe `DATA:`. Les réponses `ACK:VIB:OK` et `ERR:VIB:INVALID` sont journalisées et publiées sur le topic d'ACK.
 - Le statut utilise un LWT offline et un heartbeat online sur `healthkicks/v1/{device_id}/status`.
 
 ## Construction du paquet Debian
