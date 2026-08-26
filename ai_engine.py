@@ -40,6 +40,17 @@ class EdgeAI:
         self._last_fall = 0.0
         self._lock = threading.Lock()
 
+    def train_and_save(self, X_train: object) -> None:
+        """Train an IsolationForest from trusted samples and persist it."""
+        samples = np.asarray(X_train, dtype=float)
+        if samples.ndim != 2 or samples.shape[1] != len(AXES) or samples.shape[0] < 2:
+            raise ValueError("X_train must contain at least two six-axis samples")
+        model = IsolationForest(random_state=42, contamination="auto")
+        model.fit(samples)
+        with self._lock:
+            self._model = model
+            self._save_model()
+
     def process(self, values: dict[str, float]) -> None:
         now = datetime.now(timezone.utc)
         telemetry = Telemetry(
@@ -50,17 +61,15 @@ class EdgeAI:
         with self._lock:
             self._window.append([values[axis] for axis in AXES])
             if self._model is None:
-                if len(self._window) < self._window.maxlen:
-                    return
-                self._model = IsolationForest(random_state=42, contamination="auto")
-                self._model.fit(np.asarray(self._window))
-                self._save_model()
-                return
-            sample = np.asarray([[values[axis] for axis in AXES]])
-            prediction = int(self._model.predict(sample)[0])
-            score = float(self._model.decision_function(sample)[0])
+                anomaly = self._acceleration_magnitude(values) > 25.0
+                score = self._acceleration_magnitude(values)
+            else:
+                sample = np.asarray([[values[axis] for axis in AXES]])
+                prediction = int(self._model.predict(sample)[0])
+                score = float(self._model.decision_function(sample)[0])
+                anomaly = prediction == -1
 
-        if prediction == -1 and time.monotonic() - self._last_fall >= self._cooldown:
+        if anomaly and time.monotonic() - self._last_fall >= self._cooldown:
             self._last_fall = time.monotonic()
             event = FallEvent(
                 header=Header(device_id=self._device_id, timestamp=now),
@@ -69,6 +78,10 @@ class EdgeAI:
             self._on_emergency_haptic()
             self._on_fall(event)
             LOGGER.warning("fall_detected device_id=%s score=%.5f", self._device_id, score)
+
+    @staticmethod
+    def _acceleration_magnitude(values: dict[str, float]) -> float:
+        return float(np.linalg.norm([values["ax"], values["ay"], values["az"]]))
 
     def _load_model(self) -> IsolationForest | None:
         if not os.path.exists(self._model_path):
@@ -84,7 +97,9 @@ class EdgeAI:
 
     def _save_model(self) -> None:
         try:
-            os.makedirs(os.path.dirname(self._model_path), exist_ok=True)
+            directory = os.path.dirname(self._model_path)
+            if directory:
+                os.makedirs(directory, exist_ok=True)
             joblib.dump(self._model, self._model_path)
             LOGGER.info("ai_model_saved path=%s", self._model_path)
         except OSError as error:

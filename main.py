@@ -39,13 +39,6 @@ def main() -> None:
         on_fall=on_fall,
         on_emergency_haptic=emergency_haptic,
     )
-    serial_handler = SerialHandler(
-        device=settings.serial_device,
-        baudrate=settings.serial_baudrate,
-        stop_event=stop_event,
-        command_ttl=settings.command_ttl_seconds,
-        on_data=ai_engine.process,
-    )
     mqtt_handler = MQTTHandler(
         host=settings.mqtt_host,
         port=settings.mqtt_port,
@@ -57,10 +50,19 @@ def main() -> None:
         fall_topic=settings.fall_topic,
         command_topic=settings.command_topic,
         status_topic=settings.status_topic,
+        ack_topic=settings.ack_topic,
         heartbeat_interval=settings.heartbeat_interval_seconds,
         on_haptic_command=lambda command: serial_handler.enqueue_haptic(
             command.intensity, command.duration_ms
         ),
+    )
+    serial_handler = SerialHandler(
+        device=settings.serial_device,
+        baudrate=settings.serial_baudrate,
+        stop_event=stop_event,
+        command_ttl=settings.command_ttl_seconds,
+        on_data=ai_engine.process,
+        on_response=mqtt_handler.publish_arduino_response,
     )
 
     def request_shutdown(signum: int, _: object) -> None:

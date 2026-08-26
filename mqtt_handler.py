@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import json
 import logging
 from pathlib import Path
 import threading
@@ -29,6 +30,7 @@ class MQTTHandler:
         fall_topic: str,
         command_topic: str,
         status_topic: str,
+        ack_topic: str,
         heartbeat_interval: int,
         on_haptic_command: Callable[[HapticCommand], None],
     ) -> None:
@@ -37,6 +39,7 @@ class MQTTHandler:
         self._telemetry_topic = telemetry_topic
         self._command_topic = command_topic
         self._status_topic = status_topic
+        self._ack_topic = ack_topic
         self._heartbeat_interval = heartbeat_interval
         self._on_haptic_command = on_haptic_command
         self._started_at = time.monotonic()
@@ -44,8 +47,12 @@ class MQTTHandler:
         self.client = mqtt.Client(callback_api_version=CallbackAPIVersion.VERSION2, client_id=client_id)
         if username:
             self.client.username_pw_set(username, password)
-        offline = self._status("offline", reason="unexpected_disconnection")
-        self.client.will_set(status_topic, offline.model_dump_json(), qos=1, retain=True)
+        self.client.will_set(
+            status_topic,
+            '{"state":"offline","reason":"unexpected_disconnection"}',
+            qos=1,
+            retain=True,
+        )
         self.client.on_connect = self._on_connect
         self.client.on_message = self._on_message
         self.client.reconnect_delay_set(min_delay=1, max_delay=30)
@@ -67,6 +74,13 @@ class MQTTHandler:
 
     def publish_fall(self, event: FallEvent) -> None:
         self._publish(self._fall_topic, event.model_dump_json(), qos=1)
+
+    def publish_arduino_response(self, response: str) -> None:
+        payload = {
+            "timestamp": datetime.now(timezone.utc).isoformat(),
+            "status": response,
+        }
+        self._publish(self._ack_topic, json.dumps(payload), qos=1)
 
     def heartbeat_loop(self) -> None:
         while not self._stop_event.wait(self._heartbeat_interval):

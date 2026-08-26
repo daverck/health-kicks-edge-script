@@ -27,12 +27,14 @@ class SerialHandler:
         stop_event: threading.Event,
         command_ttl: float,
         on_data: Callable[[dict[str, float]], None],
+        on_response: Callable[[str], None] | None = None,
     ) -> None:
         self._device = device
         self._baudrate = baudrate
         self._stop_event = stop_event
         self._command_ttl = command_ttl
         self._on_data = on_data
+        self._on_response = on_response
         self._commands: queue.Queue[QueuedCommand] = queue.Queue(maxsize=100)
         self._serial: serial.Serial | None = None
 
@@ -94,6 +96,8 @@ class SerialHandler:
         text = line.decode("utf-8", errors="replace").strip()
         if text.startswith("ACK:") or text.startswith("ERR:"):
             LOGGER.info("arduino_response response=%s", text)
+            if self._on_response is not None:
+                self._on_response(text)
             return
         if not text.startswith("DATA:"):
             LOGGER.warning("serial_line_ignored")

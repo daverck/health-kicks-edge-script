@@ -18,6 +18,7 @@ class Settings:
     fall_topic: str
     command_topic: str
     status_topic: str
+    ack_topic: str
     heartbeat_interval_seconds: int
     command_ttl_seconds: float
     fall_cooldown_seconds: float
@@ -42,6 +43,7 @@ class Settings:
             fall_topic=os.getenv("EDGE_FALL_TOPIC", f"{prefix}/events/fall"),
             command_topic=os.getenv("EDGE_COMMAND_TOPIC", f"{prefix}/commands/haptic"),
             status_topic=os.getenv("EDGE_STATUS_TOPIC", f"{prefix}/status"),
+            ack_topic=os.getenv("EDGE_ACK_TOPIC", f"{prefix}/commands/ack"),
             heartbeat_interval_seconds=int(os.getenv("EDGE_HEARTBEAT_INTERVAL", "30")),
             command_ttl_seconds=float(os.getenv("EDGE_COMMAND_TTL", "2")),
             fall_cooldown_seconds=float(os.getenv("EDGE_FALL_COOLDOWN", "3")),
