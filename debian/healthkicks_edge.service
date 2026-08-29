@@ -5,12 +5,12 @@ Wants=network-online.target
 
 [Service]
 Type=simple
-User=healthkicks-edge
+User=healthkicks_edge
 Group=dialout
 SupplementaryGroups=dialout
-WorkingDirectory=/opt/healthkicks-edge-agent
-EnvironmentFile=-/etc/healthkicks-edge-agent/agent.env
-ExecStart=/usr/bin/python3 /opt/healthkicks-edge-agent/main.py
+WorkingDirectory=/opt/healthkicks_edge
+EnvironmentFile=-/etc/healthkicks_edge/agent.env
+ExecStart=/usr/bin/python3 /opt/healthkicks_edge/main.py
 Restart=always
 RestartSec=5
 Environment=PYTHONUNBUFFERED=1

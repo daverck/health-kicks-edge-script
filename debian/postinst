@@ -1,22 +1,27 @@
 #!/bin/sh
 set -eu
 
-if ! id healthkicks-edge >/dev/null 2>&1; then
-    adduser --system --group --no-create-home --disabled-login healthkicks-edge
+if ! id healthkicks_edge >/dev/null 2>&1; then
+    adduser --system --group --no-create-home --disabled-login healthkicks_edge
 fi
-adduser healthkicks-edge dialout >/dev/null 2>&1 || true
+adduser healthkicks_edge dialout >/dev/null 2>&1 || true
 
-install -d -o healthkicks-edge -g healthkicks-edge -m 0750 /var/lib/healthkicks
-install -d -m 0750 /etc/healthkicks-edge-agent
-if [ ! -e /etc/healthkicks-edge-agent/agent.env ]; then
-    cp /etc/healthkicks-edge-agent/agent.env.example /etc/healthkicks-edge-agent/agent.env
-    chmod 0640 /etc/healthkicks-edge-agent/agent.env
+install -d -o healthkicks_edge -g healthkicks_edge -m 0750 /var/lib/healthkicks
+install -d -m 0750 /etc/healthkicks_edge
+if [ ! -e /etc/healthkicks_edge/agent.env ]; then
+    cp /etc/healthkicks_edge/agent.env.example /etc/healthkicks_edge/agent.env
+    chmod 0640 /etc/healthkicks_edge/agent.env
 fi
+
+install -d -o mosquitto -g mosquitto -m 0700 /etc/mosquitto/certs
 
 if command -v systemctl >/dev/null 2>&1; then
     systemctl daemon-reload
-    systemctl enable healthkicks-edge.service >/dev/null 2>&1 || true
-    systemctl restart healthkicks-edge.service >/dev/null 2>&1 || systemctl start healthkicks-edge.service >/dev/null 2>&1 || true
+    systemctl enable healthkicks_edge.service >/dev/null 2>&1 || true
+    systemctl restart healthkicks_edge.service >/dev/null 2>&1 || systemctl start healthkicks_edge.service >/dev/null 2>&1 || true
+    if systemctl list-unit-files mosquitto.service >/dev/null 2>&1; then
+        systemctl restart mosquitto.service >/dev/null 2>&1 || true
+    fi
 fi
 
 exit 0

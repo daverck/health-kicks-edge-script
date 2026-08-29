@@ -2,8 +2,8 @@
 set -eu
 
 if command -v systemctl >/dev/null 2>&1; then
-    systemctl stop healthkicks-edge.service >/dev/null 2>&1 || true
-    systemctl disable healthkicks-edge.service >/dev/null 2>&1 || true
+    systemctl stop healthkicks_edge.service >/dev/null 2>&1 || true
+    systemctl disable healthkicks_edge.service >/dev/null 2>&1 || true
 fi
 
 exit 0

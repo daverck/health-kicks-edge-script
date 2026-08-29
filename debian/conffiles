@@ -1,1 +1,2 @@
-/etc/healthkicks-edge-agent/agent.env
+/etc/healthkicks_edge/agent.env
+/etc/mosquitto/conf.d/aws-bridge.conf
