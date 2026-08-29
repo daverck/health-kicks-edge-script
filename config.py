@@ -22,6 +22,8 @@ class Settings:
     heartbeat_interval_seconds: int
     command_ttl_seconds: float
     fall_cooldown_seconds: float
+    buffer_max_size: int
+    buffer_flush_interval_seconds: float
     model_path: str
     model_window_size: int
     log_level: str
@@ -47,6 +49,8 @@ class Settings:
             heartbeat_interval_seconds=int(os.getenv("EDGE_HEARTBEAT_INTERVAL", "30")),
             command_ttl_seconds=float(os.getenv("EDGE_COMMAND_TTL", "2")),
             fall_cooldown_seconds=float(os.getenv("EDGE_FALL_COOLDOWN", "3")),
+            buffer_max_size=int(os.getenv("EDGE_BUFFER_MAX_SIZE", "50")),
+            buffer_flush_interval_seconds=float(os.getenv("EDGE_BUFFER_FLUSH_INTERVAL_SEC", "2.0")),
             model_path=os.getenv("EDGE_MODEL_PATH", "/var/lib/healthkicks/model.joblib"),
             model_window_size=int(os.getenv("EDGE_MODEL_WINDOW_SIZE", "32")),
             log_level=os.getenv("EDGE_LOG_LEVEL", "INFO").upper(),

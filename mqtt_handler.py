@@ -72,6 +72,9 @@ class MQTTHandler:
     def publish_telemetry(self, telemetry: Telemetry) -> None:
         self._publish(self._telemetry_topic, telemetry.model_dump_json(), qos=0)
 
+    def publish_batch(self, batch: object) -> None:
+        self._publish(self._telemetry_topic, batch.model_dump_json(), qos=0)
+
     def publish_fall(self, event: FallEvent) -> None:
         self._publish(self._fall_topic, event.model_dump_json(), qos=1)
 

@@ -1,4 +1,4 @@
-from __future__ import annotations
+﻿from __future__ import annotations
 
 import logging
 import signal
@@ -8,6 +8,7 @@ from ai_engine import EdgeAI
 from config import Settings
 from mqtt_handler import MQTTHandler
 from serial_handler import SerialHandler
+from telemetry_buffer import TelemetryBuffer
 
 
 def main() -> None:
@@ -20,9 +21,13 @@ def main() -> None:
 
     mqtt_handler: MQTTHandler
     serial_handler: SerialHandler
+    telemetry_buffer: TelemetryBuffer
 
     def on_telemetry(telemetry) -> None:
-        mqtt_handler.publish_telemetry(telemetry)
+        trigger = telemetry_buffer.append(telemetry)
+        if trigger:
+            count = telemetry_buffer.flush(trigger)
+            logging.getLogger(__name__).debug("telemetry_flushed samples=%d trigger=%s", count, trigger)
 
     def on_fall(event) -> None:
         mqtt_handler.publish_fall(event)
@@ -30,6 +35,12 @@ def main() -> None:
     def emergency_haptic() -> None:
         serial_handler.enqueue_haptic(255, 500)
 
+    telemetry_buffer = TelemetryBuffer(
+        device_id=settings.device_id,
+        max_size=settings.buffer_max_size,
+        flush_interval=settings.buffer_flush_interval_seconds,
+        publish=lambda batch: mqtt_handler.publish_batch(batch),
+    )
     ai_engine = EdgeAI(
         device_id=settings.device_id,
         model_path=settings.model_path,
@@ -79,8 +90,10 @@ def main() -> None:
 
     try:
         while not stop_event.wait(1.0):
-            pass
+            if telemetry_buffer.due():
+                telemetry_buffer.flush("time_interval")
     finally:
+        telemetry_buffer.flush("shutdown")
         mqtt_handler.stop()
         serial_thread.join(timeout=3.0)
         heartbeat_thread.join(timeout=3.0)

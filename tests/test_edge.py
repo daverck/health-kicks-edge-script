@@ -101,3 +101,46 @@ def test_data_prefixed_serial_telemetry_is_accepted() -> None:
     assert received == [
         {"ax": 0.96, "ay": 0.09, "az": 0.25, "gx": 0.2, "gy": -0.1, "gz": -0.1}
     ]
+
+
+def _telemetry(**payload: float):
+    from datetime import datetime, timezone as tz
+    from schemas import Header, ImuPayload, Telemetry
+
+    base = {"ax": 0.0, "ay": 0.0, "az": 30.0, "gx": 0.0, "gy": 0.0, "gz": 0.0}
+    base.update(payload)
+    return Telemetry(
+        header=Header(device_id="pi-1", timestamp=datetime.now(tz.utc)),
+        payload=ImuPayload(**base),
+    )
+
+
+def test_buffer_flushes_on_max_size() -> None:
+    from telemetry_buffer import TelemetryBuffer
+
+    batches = []
+    buffer = TelemetryBuffer("pi-1", max_size=3, flush_interval=60.0, publish=batches.append)
+    for _ in range(2):
+        assert buffer.append(_telemetry()) is None
+    assert buffer.append(_telemetry()) == "max_size"
+    assert buffer.flush("max_size") == 3
+    assert len(batches) == 1
+    batch = batches[0]
+    assert batch.metadata.sample_count == 3
+    assert batch.metadata.flush_trigger == "max_size"
+    assert len(batch.readings) == 3
+    assert batch.metadata.window_start <= batch.metadata.window_end
+
+
+def test_buffer_flushes_on_time_interval() -> None:
+    from telemetry_buffer import TelemetryBuffer
+
+    batches = []
+    buffer = TelemetryBuffer("pi-1", max_size=100, flush_interval=0.05, publish=batches.append)
+    buffer.append(_telemetry())
+    assert buffer.due() is False
+    time.sleep(0.08)
+    assert buffer.due() is True
+    assert buffer.flush("time_interval") == 1
+    assert batches[0].metadata.flush_trigger == "time_interval"
+    assert buffer.due() is False
