@@ -140,4 +140,8 @@ class MQTTHandler:
     def _publish(self, topic: str, payload: str, qos: int, retain: bool = False) -> None:
         result = self.client.publish(topic, payload=payload, qos=qos, retain=retain)
         if result.rc != mqtt.MQTT_ERR_SUCCESS:
-            LOGGER.warning("mqtt_publish_failed topic=%s rc=%s", topic, result.rc)
+            LOGGER.error(
+                "mqtt_publish_failed topic=%s rc=%s (connection issue, payload may be lost)",
+                topic,
+                result.rc,
+            )

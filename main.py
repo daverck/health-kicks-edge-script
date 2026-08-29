@@ -1,4 +1,4 @@
-﻿from __future__ import annotations
+from __future__ import annotations
 
 import logging
 import signal
@@ -15,7 +15,7 @@ def main() -> None:
     settings = Settings.from_env()
     logging.basicConfig(
         level=settings.log_level,
-        format="%(asctime)s %(levelname)s %(name)s: %(message)s",
+        format="%(asctime)s %(levelname)s %(module)s: %(message)s",
     )
     stop_event = threading.Event()
 

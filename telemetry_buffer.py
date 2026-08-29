@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import logging
 import threading
 from datetime import datetime, timezone
 from typing import Callable, Literal
@@ -7,6 +8,8 @@ from typing import Callable, Literal
 from pydantic import BaseModel, ConfigDict, Field
 
 from schemas import Header, Telemetry
+
+LOGGER = logging.getLogger(__name__)
 
 
 class BatchMetadata(BaseModel):
@@ -68,6 +71,7 @@ class TelemetryBuffer:
             if not self._readings:
                 self._window_start = datetime.now(timezone.utc)
             self._readings.append(telemetry)
+            LOGGER.debug("buffer_appended size=%d/%d", len(self._readings), self._max_size)
             if len(self._readings) >= self._max_size:
                 return "max_size"
             return None
@@ -101,4 +105,9 @@ class TelemetryBuffer:
             readings=readings,
         )
         self._publish(batch)
+        LOGGER.info(
+            "Flushing buffer: %d samples sent via MQTT (Trigger: %s)",
+            len(readings),
+            {"max_size": "Max Size", "time_interval": "Time Interval", "shutdown": "Shutdown"}[trigger],
+        )
         return len(readings)
