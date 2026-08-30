@@ -8,10 +8,7 @@ adduser healthkicks_edge dialout >/dev/null 2>&1 || true
 
 install -d -o healthkicks_edge -g healthkicks_edge -m 0750 /var/lib/healthkicks
 install -d -m 0750 /etc/healthkicks_edge
-if [ ! -e /etc/healthkicks_edge/agent.env ]; then
-    cp /etc/healthkicks_edge/agent.env.example /etc/healthkicks_edge/agent.env
-    chmod 0640 /etc/healthkicks_edge/agent.env
-fi
+chmod 0600 /etc/healthkicks_edge/agent.env
 
 install -d -o mosquitto -g mosquitto -m 0700 /etc/mosquitto/certs
 

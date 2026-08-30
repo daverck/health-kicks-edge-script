@@ -1,4 +1,4 @@
-﻿# HealthKicks Edge Agent (`healthkicks_edge`)
+# HealthKicks Edge Agent (`healthkicks_edge`)
 
 Agent local pour Raspberry Pi : lecture IMU Arduino, détection d'anomalies
 IsolationForest et commandes haptiques via Mosquitto local, avec un pont MQTT
@@ -19,11 +19,11 @@ vers AWS IoT Core.
 La construction s'effectue sur Debian ou Raspberry Pi OS, avec `dpkg-deb` installé :
 
 ```sh
-sudo apt install dpkg-dev
+sudo apt install dpkg-dev debhelper
 VERSION=0.1.0 ./build-deb.sh
 ```
 
-Le fichier produit est `healthkicks-edge_0.1.0_all.deb`. Le paquet utilise les
+Le fichier produit est `../healthkicks-edge_0.1.0_all.deb` (`dpkg-buildpackage` écrit un niveau au-dessus du dépôt). Le paquet utilise les
 dépendances Python Debian (`python3-paho-mqtt`, `python3-serial`,
 `python3-pydantic`, `python3-sklearn`, `python3-joblib`) et `mosquitto`.
 

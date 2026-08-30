@@ -1,0 +1,4 @@
+#!/usr/bin/make -f
+# Minimal debhelper rules file for the healthkicks-edge package.
+%:
+	dh $@

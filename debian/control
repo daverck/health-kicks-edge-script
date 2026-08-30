@@ -1,9 +1,13 @@
-Package: healthkicks-edge
-Version: 0.1.0
+Source: healthkicks-edge
 Section: net
 Priority: optional
-Architecture: all
 Maintainer: HealthKicks <maintainers@healthkicks.local>
+Build-Depends: debhelper-compat (= 13)
+Rules-Requires-Root: no
+Standards-Version: 4.6.2
+
+Package: healthkicks-edge
+Architecture: all
 Depends: python3 (>= 3.10), python3-joblib, python3-paho-mqtt, python3-pydantic (>= 2.0), python3-serial, python3-sklearn, adduser, mosquitto
 Description: HealthKicks local Raspberry Pi edge agent (healthkicks_edge)
  Local edge agent for Arduino IMU and haptic actuator communication.
