@@ -14,4 +14,8 @@ set -eu
 # Move to folder containing the script
 cd "$(CDPATH= cd -- "$(dirname -- "$0")" && pwd)"
 
+# Clean up any previous build artifacts
+dh_clean
+
+# Build the package (without signing)
 dpkg-buildpackage -us -uc -b

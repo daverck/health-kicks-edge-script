@@ -1,6 +1,5 @@
 main.py config.py schemas.py serial_handler.py ai_engine.py mqtt_handler.py opt/healthkicks_edge/
-debian/agent.env.example etc/healthkicks_edge/agent.env
-debian/agent.env.example etc/healthkicks_edge/agent.env.example
-debian/aws-bridge.conf etc/mosquitto/conf.d/aws-bridge.conf
-debian/healthkicks_edge.service usr/lib/systemd/system/healthkicks_edge.service
-README.md usr/share/doc/healthkicks-edge/README.md
+debian/agent.env.example etc/healthkicks_edge/
+debian/aws-bridge.conf etc/mosquitto/conf.d/
+debian/healthkicks_edge.service usr/lib/systemd/system/
+README.md usr/share/doc/healthkicks-edge/

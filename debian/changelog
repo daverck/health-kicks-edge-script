@@ -1,0 +1,5 @@
+healthkicks-edge (0.1.0) unstable; urgency=medium
+
+  * Initial Debian package of the HealthKicks edge agent.
+
+ -- HealthKicks <serckdavid@gmail.com>  Sun, 30 Aug 2026 00:00:00 +0000

@@ -16,11 +16,11 @@ vers AWS IoT Core.
 
 ## Construction du paquet Debian
 
-La construction s'effectue sur Debian ou Raspberry Pi OS, avec `dpkg-deb` installé :
+La construction s'effectue sur Debian ou Raspberry Pi OS, avec les outils de packaging installés :
 
 ```sh
 sudo apt install dpkg-dev debhelper
-VERSION=0.1.0 ./build-deb.sh
+./build-deb.sh
 ```
 
 Le fichier produit est `../healthkicks-edge_0.1.0_all.deb` (`dpkg-buildpackage` écrit un niveau au-dessus du dépôt). Le paquet utilise les
