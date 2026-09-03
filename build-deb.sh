@@ -6,7 +6,6 @@
 #   debian/control     package metadata + Build-Depends
 #   debian/rules       minimal "%: dh $@" makefile
 #   debian/install     file -> destination mapping (dh_install)
-#   debian/conffiles   /etc files preserved on upgrade
 #   debian/postinst    user/dir setup, mosquitto certs, service restarts
 #   debian/prerm       service stop/disable
 set -eu
