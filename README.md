@@ -29,11 +29,23 @@ dépendances Python Debian (`python3-paho-mqtt`, `python3-serial`,
 
 ## Installation sur Raspberry Pi
 
+Définissez l'identifiant matériel du device (`EDGE_DEVICE_ID`) avant l'installation du paquet. Le script d'installation `postinst` s'appuie sur cette variable d'environnement pour générer automatiquement la bonne configuration dans `/etc/healthkicks_edge/agent.env` ainsi que les règles de routage des topics dans `/etc/mosquitto/conf.d/aws-bridge.conf` :
+
 ```sh
-sudo apt install ./healthkicks-edge_0.1.0_all.deb
+# Définir l'identifiant matériel (ex: HK-1, HK-2, etc.)
+export EDGE_DEVICE_ID="HK-1"
+
+# Installer le paquet Debian (l'option -E préserve la variable d'environnement pour postinst)
+sudo -E apt install ./healthkicks-edge_0.1.0_all.deb
+# ou avec dpkg :
+# sudo EDGE_DEVICE_ID="HK-1" dpkg -i healthkicks-edge_0.1.0_all.deb
+
 sudoedit /etc/healthkicks_edge/agent.env
 sudo systemctl restart healthkicks_edge.service
 ```
+
+> [!NOTE]
+> Si la variable `EDGE_DEVICE_ID` n'est pas définie avant l'installation, la valeur de repli par défaut `HK-1` est appliquée automatiquement.
 
 Le fichier `/etc/healthkicks_edge/agent.env` contient l'identité du device,
 la connexion MQTT, les topics, le port série et les paramètres IA. Il est
@@ -94,14 +106,14 @@ réception/abonnement uniquement sur le topic de commandes haptiques.
       "Effect": "Allow",
       "Action": ["iot:Publish", "iot:Receive"],
       "Resource": [
-        "arn:aws:iot:eu-north-1:693906847467:topic/healthkicks/v1/healthkicks-pi-001/telemetry/raw",
-        "arn:aws:iot:eu-north-1:693906847467:topic/healthkicks/v1/healthkicks-pi-001/commands/haptic"
+        "arn:aws:iot:eu-north-1:693906847467:topic/healthkicks/v1/HK-1/telemetry/raw",
+        "arn:aws:iot:eu-north-1:693906847467:topic/healthkicks/v1/HK-1/commands/haptic"
       ]
     },
     {
       "Effect": "Allow",
       "Action": ["iot:Subscribe"],
-      "Resource": ["arn:aws:iot:eu-north-1:693906847467:topicfilter/healthkicks/v1/healthkicks-pi-001/commands/haptic"]
+      "Resource": ["arn:aws:iot:eu-north-1:693906847467:topicfilter/healthkicks/v1/HK-1/commands/haptic"]
     }
   ]
 }
