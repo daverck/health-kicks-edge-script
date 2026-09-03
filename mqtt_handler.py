@@ -102,6 +102,11 @@ class MQTTHandler:
         except (ValidationError, ValueError) as error:
             LOGGER.warning("mqtt_command_invalid error=%s", error)
             return
+        LOGGER.info(
+            "haptic_command_received intensity=%s duration=%s",
+            command.intensity,
+            command.duration_ms,
+        )
         self._on_haptic_command(command)
 
     def _publish_status(self, state: str, reason: str | None = None) -> None:

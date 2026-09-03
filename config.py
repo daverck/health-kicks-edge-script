@@ -30,7 +30,7 @@ class Settings:
 
     @classmethod
     def from_env(cls) -> Settings:
-        device_id = os.getenv("EDGE_DEVICE_ID", "healthkicks-pi-001")
+        device_id = os.getenv("EDGE_DEVICE_ID", "HK-1")
         prefix = f"healthkicks/v1/{device_id}"
         return cls(
             device_id=device_id,
