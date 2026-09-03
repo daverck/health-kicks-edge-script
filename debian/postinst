@@ -12,14 +12,41 @@ install -d -o healthkicks_edge -g healthkicks_edge -m 0750 /var/lib/healthkicks
 install -d -m 0750 /etc/healthkicks_edge
 install -d -o mosquitto -g mosquitto -m 0700 /etc/mosquitto/certs
 
-# 3. Copy the example configuration file if it doesn't exist
-if [ ! -f /etc/healthkicks_edge/agent.env ]; then
-    cp /etc/healthkicks_edge/agent.env.example /etc/healthkicks_edge/agent.env
-    chown healthkicks_edge:healthkicks_edge /etc/healthkicks_edge/agent.env
-    chmod 0600 /etc/healthkicks_edge/agent.env
+# 3. Determine target device ID from environment variable (EDGE_DEVICE_ID or DEVICE_ID)
+#    prior to service installation, or fallback to existing configuration / default "HK-1"
+TARGET_DEVICE_ID="${EDGE_DEVICE_ID:-${DEVICE_ID:-}}"
+
+if [ -z "$TARGET_DEVICE_ID" ] && [ -f /etc/healthkicks_edge/agent.env ]; then
+    TARGET_DEVICE_ID=$(grep -E '^[[:space:]]*EDGE_DEVICE_ID=' /etc/healthkicks_edge/agent.env | head -n 1 | cut -d'=' -f2- | tr -d '"'\'' ')
 fi
 
-# 4. Reload systemd daemon and enable/restart the service if systemctl is available
+if [ -z "$TARGET_DEVICE_ID" ]; then
+    TARGET_DEVICE_ID="HK-1"
+fi
+
+# 4. Generate /etc/healthkicks_edge/agent.env with the target device ID
+if [ ! -f /etc/healthkicks_edge/agent.env ]; then
+    sed -e "s|HK-1|${TARGET_DEVICE_ID}|g" \
+        -e "s|healthkicks-pi-001|${TARGET_DEVICE_ID}|g" \
+        /etc/healthkicks_edge/agent.env.example > /etc/healthkicks_edge/agent.env
+    chown healthkicks_edge:healthkicks_edge /etc/healthkicks_edge/agent.env
+    chmod 0600 /etc/healthkicks_edge/agent.env
+else
+    # If explicitly specified in environment on upgrade/reinstall, update existing agent.env
+    if [ -n "${EDGE_DEVICE_ID:-${DEVICE_ID:-}}" ]; then
+        sed -i -E "s|^[[:space:]]*EDGE_DEVICE_ID=.*|EDGE_DEVICE_ID=${TARGET_DEVICE_ID}|" /etc/healthkicks_edge/agent.env
+        sed -i -E "s|healthkicks/v1/[^/]+|healthkicks/v1/${TARGET_DEVICE_ID}|g" /etc/healthkicks_edge/agent.env
+        sed -i -E "s|^[[:space:]]*EDGE_MQTT_CLIENT_ID=.*|EDGE_MQTT_CLIENT_ID=${TARGET_DEVICE_ID}-edge|" /etc/healthkicks_edge/agent.env
+    fi
+fi
+
+# 5. Configure Mosquitto AWS bridge topic routing based on the target device ID
+if [ -f /etc/mosquitto/conf.d/aws-bridge.conf ]; then
+    sed -i -E "s|topic healthkicks/v1/[^/]+/telemetry/raw|topic healthkicks/v1/${TARGET_DEVICE_ID}/telemetry/raw|g" /etc/mosquitto/conf.d/aws-bridge.conf
+    sed -i -E "s|topic healthkicks/v1/[^/]+/commands/haptic|topic healthkicks/v1/${TARGET_DEVICE_ID}/commands/haptic|g" /etc/mosquitto/conf.d/aws-bridge.conf
+fi
+
+# 6. Reload systemd daemon and enable/restart the service if systemctl is available
 if command -v systemctl >/dev/null 2>&1; then
     systemctl daemon-reload
     systemctl enable healthkicks_edge.service >/dev/null 2>&1 || true
