@@ -68,6 +68,8 @@ def main() -> None:
         on_haptic_command=lambda command: serial_handler.enqueue_haptic(
             command.intensity, command.duration_ms
         ),
+        studio_command_topic=settings.studio_command_topic,
+        on_studio_command=lambda config: studio_manager.start_capture(config),
     )
     serial_handler = SerialHandler(
         device=settings.serial_device,
@@ -82,6 +84,7 @@ def main() -> None:
         telemetry_buffer=telemetry_buffer,
         stop_event=stop_event,
     )
+    mqtt_handler.set_studio_manager(studio_manager)
 
     def request_shutdown(signum: int, _: object) -> None:
         logging.getLogger(__name__).info("shutdown_signal signal=%s", signum)

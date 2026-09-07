@@ -27,6 +27,7 @@ class Settings:
     model_path: str
     model_window_size: int
     log_level: str
+    studio_command_topic: str = ""
 
     @classmethod
     def from_env(cls) -> Settings:
@@ -54,4 +55,7 @@ class Settings:
             model_path=os.getenv("EDGE_MODEL_PATH", "/var/lib/healthkicks/model.joblib"),
             model_window_size=int(os.getenv("EDGE_MODEL_WINDOW_SIZE", "32")),
             log_level=os.getenv("EDGE_LOG_LEVEL", "INFO").upper(),
+            studio_command_topic=os.getenv(
+                "EDGE_STUDIO_COMMAND_TOPIC", f"{prefix}/commands/studio/start"
+            ),
         )

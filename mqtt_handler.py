@@ -6,13 +6,24 @@ from pathlib import Path
 import threading
 import time
 from datetime import datetime, timezone
-from typing import Callable
+from typing import TYPE_CHECKING, Callable
 
 import paho.mqtt.client as mqtt
 from paho.mqtt.enums import CallbackAPIVersion
 from pydantic import ValidationError
 
-from schemas import DeviceStatus, DeviceStatusPayload, FallEvent, Header, HapticCommand, Telemetry
+from schemas import (
+    DeviceStatus,
+    DeviceStatusPayload,
+    FallEvent,
+    HapticCommand,
+    Header,
+    StudioCaptureConfig,
+    Telemetry,
+)
+
+if TYPE_CHECKING:
+    from studio_manager import StudioManager
 
 LOGGER = logging.getLogger(__name__)
 
@@ -33,15 +44,23 @@ class MQTTHandler:
         ack_topic: str,
         heartbeat_interval: int,
         on_haptic_command: Callable[[HapticCommand], None],
+        studio_command_topic: str | None = None,
+        studio_manager: StudioManager | None = None,
+        on_studio_command: Callable[[StudioCaptureConfig], bool] | None = None,
     ) -> None:
         self._device_id = device_id
         self._fall_topic = fall_topic
         self._telemetry_topic = telemetry_topic
         self._command_topic = command_topic
+        self._studio_command_topic = (
+            studio_command_topic or f"healthkicks/v1/{device_id}/commands/studio/start"
+        )
         self._status_topic = status_topic
         self._ack_topic = ack_topic
         self._heartbeat_interval = heartbeat_interval
         self._on_haptic_command = on_haptic_command
+        self._studio_manager = studio_manager
+        self._on_studio_command = on_studio_command
         self._started_at = time.monotonic()
         self._stop_event = threading.Event()
         self.client = mqtt.Client(callback_api_version=CallbackAPIVersion.VERSION2, client_id=client_id)
@@ -78,10 +97,21 @@ class MQTTHandler:
     def publish_fall(self, event: FallEvent) -> None:
         self._publish(self._fall_topic, event.model_dump_json(), qos=1)
 
+    def set_studio_manager(self, studio_manager: StudioManager) -> None:
+        self._studio_manager = studio_manager
+
     def publish_arduino_response(self, response: str) -> None:
         payload = {
             "timestamp": datetime.now(timezone.utc).isoformat(),
             "status": response,
+        }
+        self._publish(self._ack_topic, json.dumps(payload), qos=1)
+
+    def publish_studio_ack(self, session_id: str, status: str) -> None:
+        payload = {
+            "command": "studio/start",
+            "session_id": session_id,
+            "status": status,
         }
         self._publish(self._ack_topic, json.dumps(payload), qos=1)
 
@@ -92,13 +122,49 @@ class MQTTHandler:
     def _on_connect(self, client: mqtt.Client, _: object, __: dict, reason_code: mqtt.ReasonCode, ___: object) -> None:
         if reason_code == 0:
             client.subscribe(self._command_topic, qos=1)
+            client.subscribe(self._studio_command_topic, qos=1)
             LOGGER.info("mqtt_connected host=%s port=%s", self._host, self._port)
         else:
             LOGGER.warning("mqtt_connection_refused reason=%s", reason_code)
 
     def _on_message(self, _: mqtt.Client, __: object, message: mqtt.MQTTMessage) -> None:
+        topic = getattr(message, "topic", "")
+        if topic == self._studio_command_topic or (topic and topic.endswith("/commands/studio/start")):
+            self._handle_studio_command(message.payload)
+            return
+
+        self._handle_haptic_command(message.payload)
+
+    def _handle_studio_command(self, payload: bytes | str) -> None:
         try:
-            command = HapticCommand.model_validate_json(message.payload)
+            config = StudioCaptureConfig.model_validate_json(payload)
+        except (ValidationError, ValueError) as error:
+            LOGGER.warning("mqtt_studio_command_invalid error=%s", error)
+            return
+
+        LOGGER.info(
+            "studio_command_received session_id=%s label=%s duration=%.1f",
+            config.session_id,
+            config.label,
+            config.duration_sec,
+        )
+        started = False
+        if self._on_studio_command is not None:
+            started = self._on_studio_command(config)
+        elif self._studio_manager is not None:
+            started = self._studio_manager.start_capture(config)
+        else:
+            LOGGER.warning("studio_manager_not_configured")
+
+        status = "started" if started else "busy"
+        if not started:
+            LOGGER.warning("studio_session_busy session_id=%s", config.session_id)
+
+        self.publish_studio_ack(config.session_id, status)
+
+    def _handle_haptic_command(self, payload: bytes | str) -> None:
+        try:
+            command = HapticCommand.model_validate_json(payload)
         except (ValidationError, ValueError) as error:
             LOGGER.warning("mqtt_command_invalid error=%s", error)
             return
