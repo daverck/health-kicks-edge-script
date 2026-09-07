@@ -5,28 +5,11 @@ import threading
 from datetime import datetime, timezone
 from typing import Callable, Literal
 
-from pydantic import BaseModel, ConfigDict, Field
-
-from schemas import Header, Telemetry
+from schemas import BatchMetadata, Header, Telemetry, TelemetryBatch
 
 LOGGER = logging.getLogger(__name__)
 
-
-class BatchMetadata(BaseModel):
-    model_config = ConfigDict(extra="forbid")
-
-    sample_count: int = Field(ge=1)
-    window_start: datetime
-    window_end: datetime
-    flush_trigger: Literal["max_size", "time_interval", "shutdown"]
-
-
-class TelemetryBatch(BaseModel):
-    model_config = ConfigDict(extra="forbid")
-
-    header: Header
-    metadata: BatchMetadata
-    readings: list[Telemetry]
+__all__ = ["BatchMetadata", "TelemetryBatch", "TelemetryBuffer"]
 
 
 class TelemetryBuffer:
@@ -84,7 +67,12 @@ class TelemetryBuffer:
             elapsed = (datetime.now(timezone.utc) - self._window_start).total_seconds()
             return elapsed >= self._flush_interval
 
-    def flush(self, trigger: Literal["max_size", "time_interval", "shutdown"]) -> int:
+    def flush(
+        self,
+        trigger: Literal["max_size", "time_interval", "shutdown", "studio"],
+        session_id: str | None = None,
+        label: str | None = None,
+    ) -> int:
         """Publish the buffered readings as a single batch. Returns batch size."""
         with self._lock:
             if not self._readings:
@@ -101,13 +89,21 @@ class TelemetryBuffer:
                 window_start=window_start,
                 window_end=window_end,
                 flush_trigger=trigger,
+                session_id=session_id,
+                label=label,
             ),
             readings=readings,
         )
         self._publish(batch)
+        trigger_names = {
+            "max_size": "Max Size",
+            "time_interval": "Time Interval",
+            "shutdown": "Shutdown",
+            "studio": "Studio",
+        }
         LOGGER.info(
             "Flushing buffer: %d samples sent via MQTT (Trigger: %s)",
             len(readings),
-            {"max_size": "Max Size", "time_interval": "Time Interval", "shutdown": "Shutdown"}[trigger],
+            trigger_names.get(trigger, trigger),
         )
         return len(readings)

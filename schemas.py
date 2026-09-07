@@ -64,3 +64,19 @@ class DeviceStatusPayload(StrictModel):
 class DeviceStatus(StrictModel):
     header: Header
     payload: DeviceStatusPayload
+
+
+class BatchMetadata(StrictModel):
+    sample_count: int = Field(ge=1)
+    window_start: datetime
+    window_end: datetime
+    flush_trigger: Literal["max_size", "time_interval", "shutdown", "studio"]
+    session_id: str | None = Field(default=None, max_length=128)
+    label: str | None = Field(default=None, max_length=64)
+
+
+class TelemetryBatch(StrictModel):
+    header: Header
+    metadata: BatchMetadata
+    readings: list[Telemetry]
+
