@@ -90,8 +90,8 @@ sudo chmod 600 /etc/mosquitto/certs/AmazonRootCA1.pem \
 ### 2. Politique IAM AWS IoT Core (moindre privilège)
 
 Attachez au certificat la policy suivante : connexion limitée au client id
-`healthkicks-edge`, publication sur le topic de télémétrie et
-réception/abonnement uniquement sur le topic de commandes haptiques.
+`HK-1` (ou l'identifiant du device configuré), publication sur le topic de télémétrie et
+réception/abonnement uniquement sur les topics de commandes.
 
 ```json
 {
@@ -100,7 +100,7 @@ réception/abonnement uniquement sur le topic de commandes haptiques.
     {
       "Effect": "Allow",
       "Action": ["iot:Connect"],
-      "Resource": ["arn:aws:iot:eu-north-1:693906847467:client/healthkicks-edge"]
+      "Resource": ["arn:aws:iot:eu-north-1:693906847467:client/HK-1"]
     },
     {
       "Effect": "Allow",

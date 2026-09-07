@@ -40,8 +40,9 @@ else
     fi
 fi
 
-# 5. Configure Mosquitto AWS bridge topic routing based on the target device ID
+# 5. Configure Mosquitto AWS bridge topic routing and client ID based on the target device ID
 if [ -f /etc/mosquitto/conf.d/aws-bridge.conf ]; then
+    sed -i -E "s|^[[:space:]]*remote_clientid[[:space:]]+.*|remote_clientid ${TARGET_DEVICE_ID}|" /etc/mosquitto/conf.d/aws-bridge.conf
     sed -i -E "s|topic healthkicks/v1/[^/]+/telemetry/raw|topic healthkicks/v1/${TARGET_DEVICE_ID}/telemetry/raw|g" /etc/mosquitto/conf.d/aws-bridge.conf
     sed -i -E "s|topic healthkicks/v1/[^/]+/commands/haptic|topic healthkicks/v1/${TARGET_DEVICE_ID}/commands/haptic|g" /etc/mosquitto/conf.d/aws-bridge.conf
     sed -i -E "s|topic healthkicks/v1/[^/]+/commands/studio/start|topic healthkicks/v1/${TARGET_DEVICE_ID}/commands/studio/start|g" /etc/mosquitto/conf.d/aws-bridge.conf
