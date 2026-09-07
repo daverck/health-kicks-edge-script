@@ -80,3 +80,14 @@ class TelemetryBatch(StrictModel):
     metadata: BatchMetadata
     readings: list[Telemetry]
 
+
+class StudioCaptureConfig(StrictModel):
+    session_id: str = Field(min_length=1, max_length=128)
+    label: str = Field(min_length=1, max_length=64)
+    duration_sec: float = Field(default=5.0, ge=1.0, le=30.0)
+    pulse_count: int = Field(default=3, ge=1, le=5)
+    pulse_duration_ms: int = Field(default=150, ge=50, le=1000)
+    pulse_pause_ms: int = Field(default=350, ge=100, le=1000)
+    pulse_intensity: int = Field(default=180, ge=50, le=255)
+
+

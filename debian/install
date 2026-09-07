@@ -1,4 +1,4 @@
-main.py config.py schemas.py serial_handler.py ai_engine.py mqtt_handler.py opt/healthkicks_edge/
+main.py config.py schemas.py serial_handler.py ai_engine.py mqtt_handler.py telemetry_buffer.py studio_manager.py opt/healthkicks_edge/
 debian/agent.env.example etc/healthkicks_edge/
 debian/aws-bridge.conf etc/mosquitto/conf.d/
 debian/healthkicks_edge.service usr/lib/systemd/system/

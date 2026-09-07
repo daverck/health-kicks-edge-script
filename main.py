@@ -8,6 +8,7 @@ from ai_engine import EdgeAI
 from config import Settings
 from mqtt_handler import MQTTHandler
 from serial_handler import SerialHandler
+from studio_manager import StudioManager
 from telemetry_buffer import TelemetryBuffer
 
 
@@ -22,10 +23,11 @@ def main() -> None:
     mqtt_handler: MQTTHandler
     serial_handler: SerialHandler
     telemetry_buffer: TelemetryBuffer
+    studio_manager: StudioManager
 
     def on_telemetry(telemetry) -> None:
         trigger = telemetry_buffer.append(telemetry)
-        if trigger:
+        if trigger and not studio_manager.is_running:
             count = telemetry_buffer.flush(trigger)
             logging.getLogger(__name__).debug("telemetry_flushed samples=%d trigger=%s", count, trigger)
 
@@ -75,6 +77,11 @@ def main() -> None:
         on_data=ai_engine.process,
         on_response=mqtt_handler.publish_arduino_response,
     )
+    studio_manager = StudioManager(
+        serial_handler=serial_handler,
+        telemetry_buffer=telemetry_buffer,
+        stop_event=stop_event,
+    )
 
     def request_shutdown(signum: int, _: object) -> None:
         logging.getLogger(__name__).info("shutdown_signal signal=%s", signum)
@@ -90,9 +97,10 @@ def main() -> None:
 
     try:
         while not stop_event.wait(1.0):
-            if telemetry_buffer.due():
+            if not studio_manager.is_running and telemetry_buffer.due():
                 telemetry_buffer.flush("time_interval")
     finally:
+        studio_manager.cancel()
         telemetry_buffer.flush("shutdown")
         mqtt_handler.stop()
         serial_thread.join(timeout=3.0)

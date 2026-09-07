@@ -181,3 +181,4 @@ def test_batch_metadata_field_constraints() -> None:
             window_end=now,
             flush_trigger="invalid_trigger",  # type: ignore[arg-type]
         )
+
