@@ -107,13 +107,17 @@ réception/abonnement uniquement sur le topic de commandes haptiques.
       "Action": ["iot:Publish", "iot:Receive"],
       "Resource": [
         "arn:aws:iot:eu-north-1:693906847467:topic/healthkicks/v1/HK-1/telemetry/raw",
-        "arn:aws:iot:eu-north-1:693906847467:topic/healthkicks/v1/HK-1/commands/haptic"
+        "arn:aws:iot:eu-north-1:693906847467:topic/healthkicks/v1/HK-1/commands/haptic",
+        "arn:aws:iot:eu-north-1:693906847467:topic/healthkicks/v1/HK-1/commands/studio/start"
       ]
     },
     {
       "Effect": "Allow",
       "Action": ["iot:Subscribe"],
-      "Resource": ["arn:aws:iot:eu-north-1:693906847467:topicfilter/healthkicks/v1/HK-1/commands/haptic"]
+      "Resource": [
+        "arn:aws:iot:eu-north-1:693906847467:topicfilter/healthkicks/v1/HK-1/commands/haptic",
+        "arn:aws:iot:eu-north-1:693906847467:topicfilter/healthkicks/v1/HK-1/commands/studio/start"
+      ]
     }
   ]
 }
