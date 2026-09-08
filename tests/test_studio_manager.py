@@ -149,13 +149,13 @@ def test_studio_capture_with_telemetry_buffer_integration() -> None:
         "HK-1", max_size=100, flush_interval=10.0, publish=published_batches.append, continuously_send_telemetry=True
     )
 
-    # Points ajoutés avant le studio
+    # Points added before studio session
     buffer.append(_sample_telemetry())
     buffer.append(_sample_telemetry())
 
     def record_during_sleep(seconds: float) -> None:
         if seconds >= 1.0:
-            # Ajout de 3 points pendant la fenêtre de capture studio
+            # 3 points recorded during the studio capture window
             buffer.append(_sample_telemetry())
             buffer.append(_sample_telemetry())
             buffer.append(_sample_telemetry())
@@ -172,14 +172,14 @@ def test_studio_capture_with_telemetry_buffer_integration() -> None:
 
     assert len(published_batches) == 2
 
-    # Premier batch : vidage nominal des 2 points initiaux
+    # First batch: nominal flush of initial 2 points
     nominal_batch = published_batches[0]
     assert nominal_batch.metadata.flush_trigger == "time_interval"
     assert nominal_batch.metadata.session_id is None
     assert nominal_batch.metadata.label is None
     assert nominal_batch.metadata.sample_count == 2
 
-    # Deuxième batch : capture studio des 3 points pendant la fenêtre
+    # Second batch: studio capture of the 3 points during window
     studio_batch = published_batches[1]
     assert studio_batch.metadata.flush_trigger == "studio"
     assert studio_batch.metadata.session_id == "real-session-42"
@@ -195,13 +195,13 @@ def test_studio_manager_with_buffer_when_continuous_send_false() -> None:
         "HK-1", max_size=100, flush_interval=10.0, publish=published_batches.append, continuously_send_telemetry=False
     )
 
-    # Points nominaux ajoutés avant le studio
+    # Nominal points added before studio session
     buffer.append(_sample_telemetry())
     buffer.append(_sample_telemetry())
 
     def record_during_sleep(seconds: float) -> None:
         if seconds >= 1.0:
-            # Points pendant la capture studio
+            # Points recorded during studio window
             buffer.append(_sample_telemetry())
             buffer.append(_sample_telemetry())
             buffer.append(_sample_telemetry())
@@ -216,7 +216,7 @@ def test_studio_manager_with_buffer_when_continuous_send_false() -> None:
     manager.start_capture(config)
     manager.wait_completion(timeout=2.0)
 
-    # Seul le batch studio doit avoir été publié sur le réseau !
+    # Only the studio batch should have been published to the network
     assert len(published_batches) == 1
     studio_batch = published_batches[0]
     assert studio_batch.metadata.flush_trigger == "studio"
@@ -241,7 +241,7 @@ def test_studio_manager_dynamic_duration() -> None:
         sleep_fn=record_sleep,
     )
 
-    # Test avec duration_sec=3.5
+    # Test with duration_sec=3.5
     config_3_5 = StudioCaptureConfig(
         session_id="sess-3-5",
         label="walk",
@@ -250,11 +250,11 @@ def test_studio_manager_dynamic_duration() -> None:
     manager.execute_session(config_3_5)
     manager.wait_completion(timeout=2.0)
 
-    # La durée de sommeil pendant la fenêtre d'enregistrement doit valoir 3.5s
+    # Slept duration during recording window must equal 3.5s
     assert durations_slept[-1] == 3.5
     mock_buffer.flush.assert_called_with("studio", session_id="sess-3-5", label="walk")
 
-    # Test avec duration_sec=6.0
+    # Test with duration_sec=6.0
     durations_slept.clear()
     config_6_0 = StudioCaptureConfig(
         session_id="sess-6-0",
@@ -269,7 +269,7 @@ def test_studio_manager_dynamic_duration() -> None:
 
 
 def test_studio_capture_config_validation() -> None:
-    # Configuration par défaut valide
+    # Valid default configuration
     valid = StudioCaptureConfig(session_id="id-1", label="walk")
     assert valid.duration_sec == 5.0
     assert valid.pulse_count == 3
@@ -277,25 +277,25 @@ def test_studio_capture_config_validation() -> None:
     assert valid.pulse_pause_ms == 350
     assert valid.pulse_intensity == 180
 
-    # duration_sec hors limites (1.0 à 30.0)
+    # duration_sec out of bounds (1.0 to 30.0)
     with pytest.raises(ValidationError):
         StudioCaptureConfig(session_id="id", label="lbl", duration_sec=0.5)
     with pytest.raises(ValidationError):
         StudioCaptureConfig(session_id="id", label="lbl", duration_sec=35.0)
 
-    # pulse_count hors limites (1 à 5)
+    # pulse_count out of bounds (1 to 5)
     with pytest.raises(ValidationError):
         StudioCaptureConfig(session_id="id", label="lbl", pulse_count=0)
     with pytest.raises(ValidationError):
         StudioCaptureConfig(session_id="id", label="lbl", pulse_count=6)
 
-    # pulse_intensity hors limites (50 à 255)
+    # pulse_intensity out of bounds (50 to 255)
     with pytest.raises(ValidationError):
         StudioCaptureConfig(session_id="id", label="lbl", pulse_intensity=40)
     with pytest.raises(ValidationError):
         StudioCaptureConfig(session_id="id", label="lbl", pulse_intensity=260)
 
-    # session_id et label vides
+    # empty session_id and label
     with pytest.raises(ValidationError):
         StudioCaptureConfig(session_id="", label="walk")
     with pytest.raises(ValidationError):
@@ -315,7 +315,7 @@ def test_studio_cancel() -> None:
     manager.start_capture(config)
     assert manager.is_running is True
 
-    # Annulation immédiate
+    # Immediate cancellation
     manager.cancel()
     finished = manager.wait_completion(timeout=2.0)
     assert finished is True

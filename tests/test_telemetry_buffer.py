@@ -111,7 +111,7 @@ def test_telemetry_buffer_retains_locally_when_continuously_send_disabled(
         "HK-1", max_size=5, flush_interval=5.0, publish=batches.append, continuously_send_telemetry=False
     )
 
-    # Les lectures continuent d'être enregistrées en mémoire locale via add_reading / append
+    # Readings continue to be recorded into local memory via add_reading / append
     reading1 = _create_sample_telemetry("HK-1")
     reading2 = _create_sample_telemetry("HK-1")
     buffer.add_reading(reading1)
@@ -119,7 +119,7 @@ def test_telemetry_buffer_retains_locally_when_continuously_send_disabled(
 
     assert len(buffer.recent_readings) == 2
 
-    # Flush périodique nominal (time_interval) : publication Cloud ignorée
+    # Nominal periodic flush (time_interval): Cloud publication skipped
     with caplog.at_level("DEBUG"):
         count = buffer.flush("time_interval")
 
@@ -130,10 +130,10 @@ def test_telemetry_buffer_retains_locally_when_continuously_send_disabled(
         in caplog.text
     )
 
-    # Le buffer de staging est vidé pour éviter une fuite mémoire, mais recent_readings reste disponible
+    # Staging buffer is emptied to prevent memory leak, but recent_readings remains available
     assert len(buffer.recent_readings) == 2
 
-    # Flush max_size également ignoré pour la publication Cloud
+    # max_size flush also skipped for Cloud publication
     buffer.append(_create_sample_telemetry("HK-1"))
     count_max = buffer.flush("max_size")
     assert count_max == 0
@@ -148,7 +148,7 @@ def test_telemetry_buffer_publishes_studio_when_continuously_send_disabled() -> 
     buffer.append(_create_sample_telemetry("HK-1"))
     buffer.append(_create_sample_telemetry("HK-1"))
 
-    # Les sessions studio avec session_id traversent le filtre
+    # Studio sessions with session_id bypass the continuous send filter
     session_id = "session-filtered-studio-42"
     label = "jump"
     count = buffer.flush("studio", session_id=session_id, label=label)

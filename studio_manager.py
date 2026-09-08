@@ -144,7 +144,7 @@ class StudioManager:
         lbl = config.label
 
         try:
-            # a. Exécution des impulsions haptiques (compte à rebours)
+            # a. Execute haptic pulses (sensory countdown)
             pulse_interval = (config.pulse_duration_ms + config.pulse_pause_ms) / 1000.0
             for pulse_idx in range(1, config.pulse_count + 1):
                 if self._cancel_event.is_set() or (self._stop_event and self._stop_event.is_set()):
@@ -168,7 +168,7 @@ class StudioManager:
             # Flush any nominal telemetry accumulated prior to recording start
             self._telemetry_buffer.flush("time_interval")
 
-            # b. Déclenchement de l'enregistrement
+            # b. Start recording window
             deadline = time.monotonic() + config.duration_sec
             with self._lock:
                 self._active_session_id = sid
@@ -183,11 +183,11 @@ class StudioManager:
                 deadline,
             )
 
-            # c. Attente de la fin de fenêtre
+            # c. Wait for capture window to complete
             self._sleep(config.duration_sec)
 
         finally:
-            # d. Clôture de la session
+            # d. Finalize session
             with self._lock:
                 self._active_session_id = None
                 self._active_label = None

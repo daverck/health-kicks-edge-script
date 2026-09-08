@@ -1,82 +1,97 @@
 # HealthKicks Edge Agent (`healthkicks_edge`)
 
-Agent local pour Raspberry Pi : lecture IMU Arduino, détection d'anomalies
-IsolationForest et commandes haptiques via Mosquitto local, avec un pont MQTT
-vers AWS IoT Core.
+Local edge agent for Raspberry Pi: Arduino IMU acquisition, real-time edge AI anomaly detection (IsolationForest), and haptic actuator control via local Mosquitto, bridged to AWS IoT Core.
 
-## Flux
+---
 
-- Une ligne IMU au format `DATA:{"ax":...,"ay":...,"az":...,"gx":...,"gy":...,"gz":...}` depuis l'Arduino est validée puis enrichie avec un header Pydantic.
-- La télémétrie normalisée est publiée sur `healthkicks/v1/{device_id}/telemetry/raw`.
-- Une anomalie locale déclenche directement `CMD:VIB:255:500\n`, puis un événement QoS 1 sur `healthkicks/v1/{device_id}/events/fall`.
-- Les commandes MQTT validées (`intensity` 0-255, `duration_ms` 50-10000) deviennent `CMD:VIB:<intensity>:<duration_ms>\n`.
-- Les lignes de télémétrie Arduino utilisent le préfixe `DATA:`. Les réponses `ACK:VIB:OK` et `ERR:VIB:INVALID` sont journalisées et publiées sur le topic d'ACK.
-- Le statut utilise un LWT offline et un heartbeat online sur `healthkicks/v1/{device_id}/status`.
-- Le pont Mosquitto `aws-iot-bridge` relaye la télémétrie vers AWS IoT Core et les commandes haptiques vers le broker local.
+## Architecture & Data Flows
 
-## Construction du paquet Debian
+- **IMU Serial Telemetry**: Incoming serial frames from Arduino formatted as `DATA:{"ax":...,"ay":...,"az":...,"gx":...,"gy":...,"gz":...}` are parsed, validated, and normalized with a Pydantic header.
+- **Continuous Local Ingestion**: Telemetry readings continuously feed a sliding FIFO memory buffer on the Raspberry Pi for real-time edge ML fall detection inference.
+- **Fall Detection**: When the local ML model detects an anomaly, it immediately triggers an emergency haptic pulse on the Arduino (`CMD:VIB:255:500\n`) and publishes a QoS 1 event to `healthkicks/v1/{device_id}/events/fall`.
+- **Haptic Actuation**: Incoming MQTT haptic commands (`intensity` 0–255, `duration_ms` 50–10000) are converted to serial frames: `CMD:VIB:<intensity>:<duration_ms>\n`.
+- **Bidirectional Acknowledgment**: Arduino telemetry frames use the `DATA:` prefix. Firmware acknowledgments (`ACK:VIB:OK` and `ERR:VIB:INVALID`) are logged and forwarded to `healthkicks/v1/{device_id}/commands/ack`.
+- **Device Status & LWT**: Heartbeat messages are periodically published to `healthkicks/v1/{device_id}/status` with an automatic Last Will and Testament (LWT) ensuring offline state reporting upon disconnection.
+- **Studio Capture Mode**: On-demand IMU recording sessions triggered remotely from the Cloud or locally:
+  1. A sensory haptic countdown (3 alert pulses: 150 ms ON / 350 ms OFF) is played via a dedicated background thread without interrupting serial sensor reading.
+  2. Any pre-existing telemetry is cleared.
+  3. A timed IMU capture window (default 5.0 seconds) records readings tagged with `session_id` and `label`.
+  4. At window close, the batch is immediately flushed to `healthkicks/v1/{device_id}/telemetry/raw` with metadata trigger `"studio"`.
+- **Continuous Telemetry Flag (`EDGE_CONTINUOUSLY_SEND_TELEMETRY`)**:
+  - `false` (default): Nominal periodic flushes only recycle local staging memory without publishing to AWS IoT Core, conserving network bandwidth. Only explicit Studio capture sessions are sent to the Cloud.
+  - `true`: All nominal periodic telemetry batches are forwarded to AWS IoT Core in real time.
+- **AWS IoT Core Bridge**: A local Mosquitto bridge (`aws-iot-bridge`) securely forwards telemetry batches to AWS IoT Core and subscribes to incoming commands using TLS mutual authentication.
 
-La construction s'effectue sur Debian ou Raspberry Pi OS, avec les outils de packaging installés :
+---
+
+## Debian Package Build
+
+Build the package on Debian or Raspberry Pi OS with standard packaging utilities:
 
 ```sh
 sudo apt install dpkg-dev debhelper
 ./build-deb.sh
 ```
 
-Le fichier produit est `../healthkicks-edge_0.1.0_all.deb` (`dpkg-buildpackage` écrit un niveau au-dessus du dépôt). Le paquet utilise les
-dépendances Python Debian (`python3-paho-mqtt`, `python3-serial`,
-`python3-pydantic`, `python3-sklearn`, `python3-joblib`) et `mosquitto`.
+The resulting package is written to the parent directory: `../healthkicks-edge_0.1.0_all.deb`.
 
-## Installation sur Raspberry Pi
+The package relies on Debian system Python packages (`python3-paho-mqtt`, `python3-serial`, `python3-pydantic`, `python3-sklearn`, `python3-joblib`), `adduser`, and `mosquitto`.
 
-Définissez l'identifiant matériel du device (`EDGE_DEVICE_ID`) avant l'installation du paquet. Le script d'installation `postinst` s'appuie sur cette variable d'environnement pour générer automatiquement la bonne configuration dans `/etc/healthkicks_edge/agent.env` ainsi que les règles de routage des topics dans `/etc/mosquitto/conf.d/aws-bridge.conf` :
+---
+
+## Installation on Raspberry Pi
+
+### 1. Set the Device Identifier
+
+Define the hardware device identifier (`EDGE_DEVICE_ID`) prior to package installation. The `postinst` script uses this variable to automatically configure `/etc/healthkicks_edge/agent.env` and parameterize the Mosquitto bridge topic routing rules in `/etc/mosquitto/conf.d/aws-bridge.conf`:
 
 ```sh
-# Définir l'identifiant matériel (ex: HK-1, HK-2, etc.)
+# Define the hardware device identifier (e.g. HK-1, HK-2, etc.)
 export EDGE_DEVICE_ID="HK-1"
 
-# Installer le paquet Debian (l'option -E préserve la variable d'environnement pour postinst)
+# Install the Debian package (-E preserves environment variables for postinst)
 sudo -E apt install ./healthkicks-edge_0.1.0_all.deb
-# ou avec dpkg :
-# sudo EDGE_DEVICE_ID="HK-1" dpkg -i healthkicks-edge_0.1.0_all.deb
 
+# Or alternatively using dpkg:
+# sudo EDGE_DEVICE_ID="HK-1" dpkg -i healthkicks-edge_0.1.0_all.deb
+```
+
+> [!NOTE]
+> If `EDGE_DEVICE_ID` is not defined prior to installation, the fallback default identifier `HK-1` is applied automatically.
+
+### 2. Configuration & Service Management
+
+Edit the environment file if custom adjustments (such as serial port or broker credentials) are required:
+
+```sh
 sudoedit /etc/healthkicks_edge/agent.env
 sudo systemctl restart healthkicks_edge.service
 ```
 
-> [!NOTE]
-> Si la variable `EDGE_DEVICE_ID` n'est pas définie avant l'installation, la valeur de repli par défaut `HK-1` est appliquée automatiquement.
+The `/etc/healthkicks_edge/agent.env` configuration file controls device identity, MQTT connection parameters, topics, serial port settings, buffer intervals, and AI thresholds. It is intentionally excluded from Git; reference defaults are documented in `healthkicks_edge.env.example`.
 
-Le fichier `/etc/healthkicks_edge/agent.env` contient l'identité du device,
-la connexion MQTT, les topics, le port série et les paramètres IA. Il est
-volontairement exclu de Git ; le modèle d'exemple est `healthkicks_edge.env.example`.
-L'utilisateur `healthkicks_edge` est ajouté au groupe `dialout` pour l'accès au
-port série. Les commandes ont un TTL par défaut de 2 secondes et le modèle est
-conservé dans `/var/lib/healthkicks/model.joblib`.
+The `healthkicks_edge` system user is automatically added to the `dialout` group for serial port access.
 
-Consulter les logs avec :
+Monitor live service logs:
 
 ```sh
 sudo journalctl -u healthkicks_edge.service -f
 ```
 
-## Pont Mosquitto vers AWS IoT Core
+---
 
-### 1. Certificats et endpoint ATS
+## Mosquitto Bridge to AWS IoT Core
 
-Dans la console AWS IoT Core, créez un objet ("thing") puis utilisez l'assistant
-**Connect Device** : il génère le certificat, la clé privée et propose de
-télécharger un **kit de démarrage** (ZIP Linux/macOS). Ce ZIP contient :
+### 1. Certificates and ATS Endpoint
 
-- `AmazonRootCA1.pem` — CA racine Amazon ;
-- `device.pem.crt` — certificat du device ;
-- `private.pem.key` — clé privée ;
-- un script `start.sh` dans lequel figure **l'endpoint ATS unique** de votre
-  compte (option `-h <xxx-ats.iot.eu-north-1.amazonaws.com>` / variable
-  `ENDPOINT`). Copiez cette valeur : c'est elle qui alimentera la configuration
-  du pont.
+In the AWS IoT Core console, create a Thing and use the **Connect Device** workflow to generate credentials and download the Linux/macOS connection kit (ZIP). The archive contains:
 
-Placez ensuite les trois fichiers dans le dossier des certificats :
+- `AmazonRootCA1.pem` — Amazon Root CA certificate;
+- `device.pem.crt` — Device certificate;
+- `private.pem.key` — Private key;
+- `start.sh` — Contains your account's unique **ATS endpoint** (`-h <xxx-ats.iot.eu-north-1.amazonaws.com>`). Note this endpoint URL for the bridge configuration.
+
+Install the certificate files into the Mosquitto certificate directory:
 
 ```sh
 sudo install -d -o mosquitto -g mosquitto -m 0700 /etc/mosquitto/certs
@@ -87,11 +102,9 @@ sudo chmod 600 /etc/mosquitto/certs/AmazonRootCA1.pem \
                /etc/mosquitto/certs/private.pem.key
 ```
 
-### 2. Politique IAM AWS IoT Core (moindre privilège)
+### 2. AWS IoT Core IAM Policy (Least Privilege)
 
-Attachez au certificat la policy suivante : connexion limitée au client id
-`HK-1` (ou l'identifiant du device configuré), publication sur le topic de télémétrie et
-réception/abonnement uniquement sur les topics de commandes.
+Attach the following policy to the device certificate, ensuring `HK-1` matches your configured `EDGE_DEVICE_ID`:
 
 ```json
 {
@@ -123,27 +136,58 @@ réception/abonnement uniquement sur les topics de commandes.
 }
 ```
 
-### 3. Configuration du pont
+### 3. Mosquitto Bridge Configuration
 
-Éditez `/etc/mosquitto/conf.d/aws-bridge.conf` (installé par le paquet et
-déclaré `conffile`) et remplacez le placeholder `<YOUR_AWS_ENDPOINT_ATS>` par
-l'endpoint ATS récupéré dans `start.sh` :
+The package installs `/etc/mosquitto/conf.d/aws-bridge.conf` (managed as a `conffile`). Ensure the `address` directive points to your ATS endpoint on port `8883`:
 
 ```ini
-address <YOUR_AWS_ENDPOINT_ATS>.iot.eu-north-1.amazonaws.com:8883
+address a2k10w7ebf2tx9-ats.iot.eu-north-1.amazonaws.com:8883
 ```
 
-Puis vérifiez et rechargez :
+Verify syntax and restart Mosquitto:
 
 ```sh
-sudo mosquitto -c /etc/mosquitto/mosquitto.conf -v   # test de syntaxe (Ctrl+C)
+sudo mosquitto -c /etc/mosquitto/mosquitto.conf -v   # Syntax test (Ctrl+C to exit)
 sudo systemctl restart mosquitto
-mosquitto_sub -t '$SYS/broker/bridge/+/connected' -v   # 1 = pont connecté
+mosquitto_sub -t '$SYS/broker/bridge/+/connected' -v   # 1 = bridge connected
 ```
 
-## Développement avec uv
+---
+
+## Local Studio Testing CLI
+
+Test the Studio acquisition sequence directly on the Raspberry Pi without requiring Cloud connectivity:
 
 ```sh
-uv sync
-uv run python main.py
+# Run with live Arduino hardware
+uv run python -m scripts.test_studio_local --label walk --duration 5.0
+
+# Run in simulation mode (synthetic IMU stream, mock haptics)
+uv run python -m scripts.test_studio_local --simulate --label sprint --duration 3.0
 ```
+
+CLI options:
+- `--label`: Activity label (e.g. `walk`, `run`, `fall`, `stairs`).
+- `--duration`: Capture duration in seconds (1.0 to 30.0).
+- `--session-id`: Unique UUID session identifier (generated automatically if omitted).
+- `--pulse-count`: Number of alert countdown vibration pulses (default: 3).
+- `--pulse-duration-ms`: Pulse ON duration in milliseconds (default: 150).
+- `--pulse-pause-ms`: Pulse OFF interval in milliseconds (default: 350).
+- `--pulse-intensity`: Haptic intensity PWM 50–255 (default: 180).
+- `--simulate`: Emits synthetic 50 Hz IMU telemetry without opening physical serial hardware.
+
+---
+
+## Development with uv
+
+```sh
+# Install Python dependencies
+uv sync
+
+# Run the edge agent directly
+uv run python main.py
+
+# Execute the test suite
+uv run pytest
+```
+

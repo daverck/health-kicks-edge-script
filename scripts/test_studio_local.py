@@ -25,7 +25,7 @@ class MockSerialHandler:
 
     def enqueue_haptic(self, intensity: int, duration_ms: int) -> None:
         self.enqueued_pulses.append((intensity, duration_ms))
-        print(f"  [HAPTIC VIBRATION] -> Intensité: {intensity}/255, Durée: {duration_ms}ms")
+        print(f"  [HAPTIC VIBRATION] -> Intensity: {intensity}/255, Duration: {duration_ms}ms")
 
 
 def _run_simulated_imu_stream(
@@ -58,20 +58,20 @@ def _run_simulated_imu_stream(
 
 def main() -> int:
     parser = argparse.ArgumentParser(
-        description="HealthKicks Studio Mode - Test local de capture IMU horodatée",
+        description="HealthKicks Studio Mode - Local timestamped IMU capture test",
         formatter_class=argparse.ArgumentDefaultsHelpFormatter,
     )
-    parser.add_argument("--label", type=str, default="walk", help="Libellé d'activité (ex: walk, run, stairs)")
-    parser.add_argument("--duration", type=float, default=5.0, help="Durée de capture en secondes (1.0 à 30.0)")
-    parser.add_argument("--session-id", type=str, default=None, help="Identifiant UUID unique de session")
-    parser.add_argument("--pulse-count", type=int, default=3, help="Nombre d'impulsions de compte à rebours")
-    parser.add_argument("--pulse-duration-ms", type=int, default=150, help="Durée d'une vibration en ms")
-    parser.add_argument("--pulse-pause-ms", type=int, default=350, help="Pause entre vibrations en ms")
-    parser.add_argument("--pulse-intensity", type=int, default=180, help="Intensité des vibrations (50 à 255)")
-    parser.add_argument("--device-id", type=str, default=None, help="Identifiant du device (défaut depuis Settings)")
-    parser.add_argument("--serial-device", type=str, default=None, help="Port série (ex: /dev/ttyUSB0 ou COM3)")
-    parser.add_argument("--baudrate", type=int, default=None, help="Vitesse série en bauds (défaut: 115200)")
-    parser.add_argument("--simulate", action="store_true", help="Forcer le générateur IMU simulé sans ouvrir le port série")
+    parser.add_argument("--label", type=str, default="walk", help="Activity label (e.g. walk, run, stairs)")
+    parser.add_argument("--duration", type=float, default=5.0, help="Capture duration in seconds (1.0 to 30.0)")
+    parser.add_argument("--session-id", type=str, default=None, help="Unique UUID session identifier")
+    parser.add_argument("--pulse-count", type=int, default=3, help="Number of countdown vibration pulses")
+    parser.add_argument("--pulse-duration-ms", type=int, default=150, help="Pulse ON duration in ms")
+    parser.add_argument("--pulse-pause-ms", type=int, default=350, help="Pulse OFF interval in ms")
+    parser.add_argument("--pulse-intensity", type=int, default=180, help="Pulse intensity (50 to 255)")
+    parser.add_argument("--device-id", type=str, default=None, help="Device identifier (defaults from Settings)")
+    parser.add_argument("--serial-device", type=str, default=None, help="Serial device path (e.g. /dev/ttyUSB0 or COM3)")
+    parser.add_argument("--baudrate", type=int, default=None, help="Serial baud rate (default: 115200)")
+    parser.add_argument("--simulate", action="store_true", help="Force synthetic IMU generator without opening serial port")
 
     args = parser.parse_args()
 
@@ -81,7 +81,7 @@ def main() -> int:
     baudrate = args.baudrate or settings.serial_baudrate
     session_id = args.session_id or f"studio-{uuid4()}"
 
-    # Validation de la configuration via Pydantic
+    # Configuration validation via Pydantic
     try:
         config = StudioCaptureConfig(
             session_id=session_id,
@@ -93,17 +93,17 @@ def main() -> int:
             pulse_intensity=args.pulse_intensity,
         )
     except Exception as exc:
-        print(f"Erreur de validation de la configuration Studio : {exc}", file=sys.stderr)
+        print(f"Studio configuration validation error: {exc}", file=sys.stderr)
         return 1
 
     print("=" * 65)
-    print("HEALTHKICKS STUDIO - TEST DE CAPTURE LOCAL")
+    print("HEALTHKICKS STUDIO - LOCAL CAPTURE TEST")
     print("=" * 65)
     print(f"  Device ID        : {device_id}")
     print(f"  Session ID       : {config.session_id}")
     print(f"  Label            : {config.label}")
-    print(f"  Durée de capture : {config.duration_sec:.1f} s")
-    print(f"  Compte à rebours : {config.pulse_count}x ({config.pulse_duration_ms}ms ON / {config.pulse_pause_ms}ms OFF, intensité {config.pulse_intensity}/255)")
+    print(f"  Duration         : {config.duration_sec:.1f} s")
+    print(f"  Countdown        : {config.pulse_count}x ({config.pulse_duration_ms}ms ON / {config.pulse_pause_ms}ms OFF, intensity {config.pulse_intensity}/255)")
     print("=" * 65)
 
     stop_event = threading.Event()
@@ -144,9 +144,9 @@ def main() -> int:
             )
             serial_thread = threading.Thread(target=serial_handler.run, name="serial-reader", daemon=True)
             serial_thread.start()
-            print(f"Connexion série établie sur {serial_device} ({baudrate} bauds).")
+            print(f"Serial connection established on {serial_device} ({baudrate} baud).")
         except Exception as err:
-            print(f"[INFO] Impossible d'ouvrir le port série ({err}). Bascule automatique sur flux simulé.")
+            print(f"[INFO] Unable to open serial port ({err}). Automatically falling back to simulated stream.")
             serial_handler = None
 
     if serial_handler is None:
@@ -158,7 +158,7 @@ def main() -> int:
             daemon=True,
         )
         simulated_thread.start()
-        print("Flux IMU simulé démarré (50 Hz).")
+        print("Simulated IMU stream started (50 Hz).")
 
     studio_manager = StudioManager(
         serial_handler=serial_handler,
@@ -166,14 +166,14 @@ def main() -> int:
         stop_event=stop_event,
     )
 
-    print("\nLancement de la séquence Studio...")
+    print("\nStarting Studio sequence...")
     started = studio_manager.start_capture(config)
     if not started:
-        print("Erreur : Impossible de démarrer la capture studio (session déjà en cours).", file=sys.stderr)
+        print("Error: Unable to start Studio capture (session already in progress).", file=sys.stderr)
         stop_event.set()
         return 1
 
-    # Attente de la fin de l'orchestrateur
+    # Wait for orchestrator thread to complete
     studio_manager.wait_completion()
     stop_event.set()
 
@@ -182,24 +182,24 @@ def main() -> int:
     if simulated_thread is not None:
         simulated_thread.join(timeout=1.0)
 
-    # Vérification et affichage du lot capturé
+    # Validate and display captured batch
     studio_batches = [b for b in captured_batches if b.metadata.flush_trigger == "studio"]
     if not studio_batches:
-        print("\nAucun lot avec le déclencheur 'studio' n'a été produit.", file=sys.stderr)
+        print("\nNo batch with 'studio' trigger was produced.", file=sys.stderr)
         return 1
 
     batch = studio_batches[-1]
     print("\n" + "=" * 65)
-    print("SESSION STUDIO TERMINÉE AVEC SUCCÈS")
+    print("STUDIO SESSION COMPLETED SUCCESSFULLY")
     print("=" * 65)
-    print(f"Nombre de points IMU capturés : {len(batch.readings)}")
-    print(f"Trigger                       : {batch.metadata.flush_trigger}")
-    print(f"Session ID                    : {batch.metadata.session_id}")
-    print(f"Label                         : {batch.metadata.label}")
-    print(f"Début de fenêtre              : {batch.metadata.window_start.isoformat()}")
-    print(f"Fin de fenêtre                : {batch.metadata.window_end.isoformat()}")
+    print(f"Captured IMU readings count : {len(batch.readings)}")
+    print(f"Trigger                     : {batch.metadata.flush_trigger}")
+    print(f"Session ID                  : {batch.metadata.session_id}")
+    print(f"Label                       : {batch.metadata.label}")
+    print(f"Window start                : {batch.metadata.window_start.isoformat()}")
+    print(f"Window end                  : {batch.metadata.window_end.isoformat()}")
     print("-" * 65)
-    print("PAYLOAD JSON DU BATCH (prêt pour AWS Lambda / DynamoDB) :")
+    print("BATCH JSON PAYLOAD (ready for AWS Lambda / DynamoDB):")
     print(json.dumps(json.loads(batch.model_dump_json()), indent=2))
     print("=" * 65)
 
