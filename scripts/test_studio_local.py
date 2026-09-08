@@ -114,6 +114,8 @@ def main() -> int:
         max_size=settings.buffer_max_size,
         flush_interval=settings.buffer_flush_interval_seconds,
         publish=captured_batches.append,
+        continuously_send_telemetry=settings.continuously_send_telemetry,
+        settings=settings,
     )
 
     serial_handler: Any = None

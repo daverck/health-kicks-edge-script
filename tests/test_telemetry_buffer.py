@@ -88,9 +88,11 @@ def test_studio_telemetry_batch_serialization() -> None:
     assert restored.metadata.flush_trigger == "studio"
 
 
-def test_telemetry_buffer_flush_nominal() -> None:
+def test_telemetry_buffer_flush_nominal_with_continuous_send() -> None:
     batches: list[TelemetryBatch] = []
-    buffer = TelemetryBuffer("HK-1", max_size=10, flush_interval=5.0, publish=batches.append)
+    buffer = TelemetryBuffer(
+        "HK-1", max_size=10, flush_interval=5.0, publish=batches.append, continuously_send_telemetry=True
+    )
     buffer.append(_create_sample_telemetry("HK-1"))
 
     count = buffer.flush("max_size")
@@ -99,6 +101,63 @@ def test_telemetry_buffer_flush_nominal() -> None:
     assert batches[0].metadata.flush_trigger == "max_size"
     assert batches[0].metadata.session_id is None
     assert batches[0].metadata.label is None
+
+
+def test_telemetry_buffer_retains_locally_when_continuously_send_disabled(
+    caplog: pytest.LogCaptureFixture,
+) -> None:
+    batches: list[TelemetryBatch] = []
+    buffer = TelemetryBuffer(
+        "HK-1", max_size=5, flush_interval=5.0, publish=batches.append, continuously_send_telemetry=False
+    )
+
+    # Les lectures continuent d'être enregistrées en mémoire locale via add_reading / append
+    reading1 = _create_sample_telemetry("HK-1")
+    reading2 = _create_sample_telemetry("HK-1")
+    buffer.add_reading(reading1)
+    buffer.append(reading2)
+
+    assert len(buffer.recent_readings) == 2
+
+    # Flush périodique nominal (time_interval) : publication Cloud ignorée
+    with caplog.at_level("DEBUG"):
+        count = buffer.flush("time_interval")
+
+    assert count == 0
+    assert len(batches) == 0
+    assert (
+        "Nominal telemetry retained locally; Cloud publication skipped (continuously_send_telemetry=False)"
+        in caplog.text
+    )
+
+    # Le buffer de staging est vidé pour éviter une fuite mémoire, mais recent_readings reste disponible
+    assert len(buffer.recent_readings) == 2
+
+    # Flush max_size également ignoré pour la publication Cloud
+    buffer.append(_create_sample_telemetry("HK-1"))
+    count_max = buffer.flush("max_size")
+    assert count_max == 0
+    assert len(batches) == 0
+
+
+def test_telemetry_buffer_publishes_studio_when_continuously_send_disabled() -> None:
+    batches: list[TelemetryBatch] = []
+    buffer = TelemetryBuffer(
+        "HK-1", max_size=10, flush_interval=5.0, publish=batches.append, continuously_send_telemetry=False
+    )
+    buffer.append(_create_sample_telemetry("HK-1"))
+    buffer.append(_create_sample_telemetry("HK-1"))
+
+    # Les sessions studio avec session_id traversent le filtre
+    session_id = "session-filtered-studio-42"
+    label = "jump"
+    count = buffer.flush("studio", session_id=session_id, label=label)
+
+    assert count == 2
+    assert len(batches) == 1
+    assert batches[0].metadata.flush_trigger == "studio"
+    assert batches[0].metadata.session_id == session_id
+    assert batches[0].metadata.label == label
 
 
 def test_telemetry_buffer_flush_studio() -> None:

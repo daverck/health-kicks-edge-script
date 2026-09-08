@@ -96,6 +96,10 @@ class StudioManager:
         self._thread.start()
         return True
 
+    def execute_session(self, config: StudioCaptureConfig) -> bool:
+        """Executes a studio capture session (alias for start_capture)."""
+        return self.start_capture(config)
+
     def cancel(self) -> None:
         """Requests cancellation of an ongoing studio session."""
         self._cancel_event.set()

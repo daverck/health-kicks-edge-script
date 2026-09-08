@@ -145,7 +145,9 @@ def test_studio_capture_with_telemetry_buffer_integration() -> None:
     mock_serial = MagicMock()
     published_batches: list[TelemetryBatch] = []
 
-    buffer = TelemetryBuffer("HK-1", max_size=100, flush_interval=10.0, publish=published_batches.append)
+    buffer = TelemetryBuffer(
+        "HK-1", max_size=100, flush_interval=10.0, publish=published_batches.append, continuously_send_telemetry=True
+    )
 
     # Points ajoutés avant le studio
     buffer.append(_sample_telemetry())
@@ -183,6 +185,87 @@ def test_studio_capture_with_telemetry_buffer_integration() -> None:
     assert studio_batch.metadata.session_id == "real-session-42"
     assert studio_batch.metadata.label == "jump"
     assert studio_batch.metadata.sample_count == 3
+
+
+def test_studio_manager_with_buffer_when_continuous_send_false() -> None:
+    mock_serial = MagicMock()
+    published_batches: list[TelemetryBatch] = []
+
+    buffer = TelemetryBuffer(
+        "HK-1", max_size=100, flush_interval=10.0, publish=published_batches.append, continuously_send_telemetry=False
+    )
+
+    # Points nominaux ajoutés avant le studio
+    buffer.append(_sample_telemetry())
+    buffer.append(_sample_telemetry())
+
+    def record_during_sleep(seconds: float) -> None:
+        if seconds >= 1.0:
+            # Points pendant la capture studio
+            buffer.append(_sample_telemetry())
+            buffer.append(_sample_telemetry())
+            buffer.append(_sample_telemetry())
+
+    manager = StudioManager(
+        serial_handler=mock_serial,
+        telemetry_buffer=buffer,
+        sleep_fn=record_during_sleep,
+    )
+
+    config = StudioCaptureConfig(session_id="studio-only-42", label="run", duration_sec=2.0)
+    manager.start_capture(config)
+    manager.wait_completion(timeout=2.0)
+
+    # Seul le batch studio doit avoir été publié sur le réseau !
+    assert len(published_batches) == 1
+    studio_batch = published_batches[0]
+    assert studio_batch.metadata.flush_trigger == "studio"
+    assert studio_batch.metadata.session_id == "studio-only-42"
+    assert studio_batch.metadata.label == "run"
+    assert studio_batch.metadata.sample_count == 3
+
+
+def test_studio_manager_dynamic_duration() -> None:
+    mock_serial = MagicMock()
+    mock_buffer = MagicMock()
+    mock_buffer.flush.return_value = 10
+
+    durations_slept: list[float] = []
+
+    def record_sleep(seconds: float) -> None:
+        durations_slept.append(seconds)
+
+    manager = StudioManager(
+        serial_handler=mock_serial,
+        telemetry_buffer=mock_buffer,
+        sleep_fn=record_sleep,
+    )
+
+    # Test avec duration_sec=3.5
+    config_3_5 = StudioCaptureConfig(
+        session_id="sess-3-5",
+        label="walk",
+        duration_sec=3.5,
+    )
+    manager.execute_session(config_3_5)
+    manager.wait_completion(timeout=2.0)
+
+    # La durée de sommeil pendant la fenêtre d'enregistrement doit valoir 3.5s
+    assert durations_slept[-1] == 3.5
+    mock_buffer.flush.assert_called_with("studio", session_id="sess-3-5", label="walk")
+
+    # Test avec duration_sec=6.0
+    durations_slept.clear()
+    config_6_0 = StudioCaptureConfig(
+        session_id="sess-6-0",
+        label="sprint",
+        duration_sec=6.0,
+    )
+    manager.execute_session(config_6_0)
+    manager.wait_completion(timeout=2.0)
+
+    assert durations_slept[-1] == 6.0
+    mock_buffer.flush.assert_called_with("studio", session_id="sess-6-0", label="sprint")
 
 
 def test_studio_capture_config_validation() -> None:

@@ -28,6 +28,7 @@ class Settings:
     model_window_size: int
     log_level: str
     studio_command_topic: str = ""
+    continuously_send_telemetry: bool = False
 
     @classmethod
     def from_env(cls) -> Settings:
@@ -57,5 +58,9 @@ class Settings:
             log_level=os.getenv("EDGE_LOG_LEVEL", "INFO").upper(),
             studio_command_topic=os.getenv(
                 "EDGE_STUDIO_COMMAND_TOPIC", f"{prefix}/commands/studio/start"
+            ),
+            continuously_send_telemetry=(
+                os.getenv("EDGE_CONTINUOUSLY_SEND_TELEMETRY", "false").lower()
+                in ("true", "1", "yes", "on")
             ),
         )

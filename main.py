@@ -42,6 +42,8 @@ def main() -> None:
         max_size=settings.buffer_max_size,
         flush_interval=settings.buffer_flush_interval_seconds,
         publish=lambda batch: mqtt_handler.publish_batch(batch),
+        continuously_send_telemetry=settings.continuously_send_telemetry,
+        settings=settings,
     )
     ai_engine = EdgeAI(
         device_id=settings.device_id,

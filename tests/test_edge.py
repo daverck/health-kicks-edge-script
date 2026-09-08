@@ -165,10 +165,12 @@ def test_settings_dynamic_topics_default_and_override(monkeypatch: pytest.Monkey
     assert settings.status_topic == f"{prefix}/status"
     assert settings.ack_topic == f"{prefix}/commands/ack"
     assert settings.mqtt_client_id == f"{TEST_DEVICE_ID}-edge"
+    assert settings.continuously_send_telemetry is False
 
     # Vérification avec surcharge via variable d'environnement
     custom_id = "HK-2"
     monkeypatch.setenv("EDGE_DEVICE_ID", custom_id)
+    monkeypatch.setenv("EDGE_CONTINUOUSLY_SEND_TELEMETRY", "true")
     settings_custom = Settings.from_env()
     assert settings_custom.device_id == custom_id
     custom_prefix = f"healthkicks/v1/{custom_id}"
@@ -178,6 +180,7 @@ def test_settings_dynamic_topics_default_and_override(monkeypatch: pytest.Monkey
     assert settings_custom.status_topic == f"{custom_prefix}/status"
     assert settings_custom.ack_topic == f"{custom_prefix}/commands/ack"
     assert settings_custom.mqtt_client_id == f"{custom_id}-edge"
+    assert settings_custom.continuously_send_telemetry is True
 
 
 def test_lwt_is_flat(monkeypatch: pytest.MonkeyPatch) -> None:
@@ -248,7 +251,9 @@ def test_buffer_flushes_on_max_size() -> None:
     from telemetry_buffer import TelemetryBuffer
 
     batches = []
-    buffer = TelemetryBuffer(TEST_DEVICE_ID, max_size=3, flush_interval=60.0, publish=batches.append)
+    buffer = TelemetryBuffer(
+        TEST_DEVICE_ID, max_size=3, flush_interval=60.0, publish=batches.append, continuously_send_telemetry=True
+    )
     for _ in range(2):
         assert buffer.append(_telemetry()) is None
     assert buffer.append(_telemetry()) == "max_size"
@@ -265,7 +270,9 @@ def test_buffer_flushes_on_time_interval() -> None:
     from telemetry_buffer import TelemetryBuffer
 
     batches = []
-    buffer = TelemetryBuffer(TEST_DEVICE_ID, max_size=100, flush_interval=0.05, publish=batches.append)
+    buffer = TelemetryBuffer(
+        TEST_DEVICE_ID, max_size=100, flush_interval=0.05, publish=batches.append, continuously_send_telemetry=True
+    )
     buffer.append(_telemetry())
     assert buffer.due() is False
     time.sleep(0.08)
