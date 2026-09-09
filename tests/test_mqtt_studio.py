@@ -50,7 +50,6 @@ def test_mqtt_subscribes_to_studio_topic_on_connect() -> None:
     handler = MQTTHandler(
         "localhost", 1883, f"{TEST_DEVICE_ID}-edge", None, None, TEST_DEVICE_ID,
         f"healthkicks/v1/{TEST_DEVICE_ID}/telemetry/raw",
-        f"healthkicks/v1/{TEST_DEVICE_ID}/events/fall",
         f"healthkicks/v1/{TEST_DEVICE_ID}/commands/haptic",
         f"healthkicks/v1/{TEST_DEVICE_ID}/status",
         f"healthkicks/v1/{TEST_DEVICE_ID}/commands/ack",
@@ -72,7 +71,6 @@ def test_mqtt_studio_start_valid_command() -> None:
     handler = MQTTHandler(
         "localhost", 1883, f"{TEST_DEVICE_ID}-edge", None, None, TEST_DEVICE_ID,
         f"healthkicks/v1/{TEST_DEVICE_ID}/telemetry/raw",
-        f"healthkicks/v1/{TEST_DEVICE_ID}/events/fall",
         f"healthkicks/v1/{TEST_DEVICE_ID}/commands/haptic",
         f"healthkicks/v1/{TEST_DEVICE_ID}/status",
         f"healthkicks/v1/{TEST_DEVICE_ID}/commands/ack",
@@ -123,7 +121,6 @@ def test_mqtt_studio_start_busy_session(caplog: pytest.LogCaptureFixture) -> Non
     handler = MQTTHandler(
         "localhost", 1883, f"{TEST_DEVICE_ID}-edge", None, None, TEST_DEVICE_ID,
         f"healthkicks/v1/{TEST_DEVICE_ID}/telemetry/raw",
-        f"healthkicks/v1/{TEST_DEVICE_ID}/events/fall",
         f"healthkicks/v1/{TEST_DEVICE_ID}/commands/haptic",
         f"healthkicks/v1/{TEST_DEVICE_ID}/status",
         f"healthkicks/v1/{TEST_DEVICE_ID}/commands/ack",
@@ -157,7 +154,6 @@ def test_mqtt_studio_start_malformed_json(caplog: pytest.LogCaptureFixture) -> N
     handler = MQTTHandler(
         "localhost", 1883, f"{TEST_DEVICE_ID}-edge", None, None, TEST_DEVICE_ID,
         f"healthkicks/v1/{TEST_DEVICE_ID}/telemetry/raw",
-        f"healthkicks/v1/{TEST_DEVICE_ID}/events/fall",
         f"healthkicks/v1/{TEST_DEVICE_ID}/commands/haptic",
         f"healthkicks/v1/{TEST_DEVICE_ID}/status",
         f"healthkicks/v1/{TEST_DEVICE_ID}/commands/ack",
@@ -181,7 +177,6 @@ def test_mqtt_studio_start_strict_model_extra_fields(caplog: pytest.LogCaptureFi
     handler = MQTTHandler(
         "localhost", 1883, f"{TEST_DEVICE_ID}-edge", None, None, TEST_DEVICE_ID,
         f"healthkicks/v1/{TEST_DEVICE_ID}/telemetry/raw",
-        f"healthkicks/v1/{TEST_DEVICE_ID}/events/fall",
         f"healthkicks/v1/{TEST_DEVICE_ID}/commands/haptic",
         f"healthkicks/v1/{TEST_DEVICE_ID}/status",
         f"healthkicks/v1/{TEST_DEVICE_ID}/commands/ack",
@@ -210,7 +205,6 @@ def test_mqtt_studio_start_invalid_constraints(caplog: pytest.LogCaptureFixture)
     handler = MQTTHandler(
         "localhost", 1883, f"{TEST_DEVICE_ID}-edge", None, None, TEST_DEVICE_ID,
         f"healthkicks/v1/{TEST_DEVICE_ID}/telemetry/raw",
-        f"healthkicks/v1/{TEST_DEVICE_ID}/events/fall",
         f"healthkicks/v1/{TEST_DEVICE_ID}/commands/haptic",
         f"healthkicks/v1/{TEST_DEVICE_ID}/status",
         f"healthkicks/v1/{TEST_DEVICE_ID}/commands/ack",

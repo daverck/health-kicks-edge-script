@@ -4,10 +4,12 @@ import logging
 import signal
 import threading
 
+from datetime import datetime, timezone
+
 from activity_classifier import ActivityClassifier
-from ai_engine import EdgeAI
 from config import Settings
 from mqtt_handler import MQTTHandler
+from schemas import Header, ImuPayload, Telemetry
 from serial_handler import SerialHandler
 from studio_manager import StudioManager
 from telemetry_buffer import TelemetryBuffer
@@ -26,14 +28,18 @@ def main() -> None:
     telemetry_buffer: TelemetryBuffer
     studio_manager: StudioManager
 
-    def on_telemetry(telemetry) -> None:
+    def handle_serial_data(values: dict[str, float]) -> None:
+        now = datetime.now(timezone.utc)
+        telemetry = Telemetry(
+            header=Header(device_id=settings.device_id, timestamp=now),
+            payload=ImuPayload(**values),
+        )
         trigger = telemetry_buffer.append(telemetry)
         if trigger and not studio_manager.is_running:
             count = telemetry_buffer.flush(trigger)
-            logging.getLogger(__name__).debug("telemetry_flushed samples=%d trigger=%s", count, trigger)
-
-    def on_fall(event) -> None:
-        mqtt_handler.publish_fall(event)
+            logging.getLogger(__name__).debug(
+                "telemetry_flushed samples=%d trigger=%s", count, trigger
+            )
 
     def emergency_haptic() -> None:
         serial_handler.enqueue_haptic(255, 500)
@@ -45,15 +51,6 @@ def main() -> None:
         publish=lambda batch: mqtt_handler.publish_batch(batch),
         continuously_send_telemetry=settings.continuously_send_telemetry,
         settings=settings,
-    )
-    ai_engine = EdgeAI(
-        device_id=settings.device_id,
-        model_path=settings.model_path,
-        window_size=settings.model_window_size,
-        fall_cooldown=settings.fall_cooldown_seconds,
-        on_telemetry=on_telemetry,
-        on_fall=on_fall,
-        on_emergency_haptic=emergency_haptic,
     )
     activity_classifier = ActivityClassifier(
         model_path=settings.model_path,
@@ -69,7 +66,6 @@ def main() -> None:
         password=settings.mqtt_password,
         device_id=settings.device_id,
         telemetry_topic=settings.telemetry_topic,
-        fall_topic=settings.fall_topic,
         command_topic=settings.command_topic,
         status_topic=settings.status_topic,
         ack_topic=settings.ack_topic,
@@ -86,7 +82,7 @@ def main() -> None:
         baudrate=settings.serial_baudrate,
         stop_event=stop_event,
         command_ttl=settings.command_ttl_seconds,
-        on_data=ai_engine.process,
+        on_data=handle_serial_data,
         on_response=mqtt_handler.publish_arduino_response,
     )
     studio_manager = StudioManager(

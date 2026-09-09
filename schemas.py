@@ -39,16 +39,6 @@ class Telemetry(StrictModel):
     payload: ImuPayload
 
 
-class FallPayload(ImuPayload):
-    anomaly_score: float
-    detection_source: Literal["edge_ai"] = "edge_ai"
-
-
-class FallEvent(StrictModel):
-    header: Header
-    payload: FallPayload
-
-
 class HapticCommand(StrictModel):
     intensity: int = Field(ge=0, le=255)
     duration_ms: int = Field(ge=50, le=10000)

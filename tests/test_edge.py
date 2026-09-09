@@ -9,9 +9,8 @@ import pytest
 from pydantic import ValidationError
 
 import mqtt_handler
-from ai_engine import EdgeAI
 from mqtt_handler import MQTTHandler
-from schemas import FallEvent, FallPayload, Header, HapticCommand
+from schemas import HapticCommand, Header
 from serial_handler import SerialHandler
 
 
@@ -56,17 +55,6 @@ class FakeMQTTClient:
         return type("Result", (), {"rc": 0})()
 
 
-def test_fall_event_schema() -> None:
-    event = FallEvent(
-        header=Header(device_id=TEST_DEVICE_ID, timestamp=datetime.now(timezone.utc)),
-        payload=FallPayload(
-            ax=1, ay=2, az=30, gx=0, gy=0, gz=0, anomaly_score=30
-        ),
-    )
-    assert event.header.schema_version == "1.0"
-    assert event.header.msg_id.version == 4
-
-
 def test_haptic_command_constraints() -> None:
     # Commande valide sans device_id
     cmd = HapticCommand(intensity=255, duration_ms=10000)
@@ -100,7 +88,6 @@ def test_mqtt_handler_on_message_clean_payload(
     handler = MQTTHandler(
         "localhost", 1883, f"{TEST_DEVICE_ID}-edge", None, None, TEST_DEVICE_ID,
         f"healthkicks/v1/{TEST_DEVICE_ID}/telemetry/raw",
-        f"healthkicks/v1/{TEST_DEVICE_ID}/events/fall",
         f"healthkicks/v1/{TEST_DEVICE_ID}/commands/haptic",
         f"healthkicks/v1/{TEST_DEVICE_ID}/status",
         f"healthkicks/v1/{TEST_DEVICE_ID}/commands/ack",
@@ -127,7 +114,6 @@ def test_mqtt_handler_on_message_rejects_payload_with_device_id(
     handler = MQTTHandler(
         "localhost", 1883, f"{TEST_DEVICE_ID}-edge", None, None, TEST_DEVICE_ID,
         f"healthkicks/v1/{TEST_DEVICE_ID}/telemetry/raw",
-        f"healthkicks/v1/{TEST_DEVICE_ID}/events/fall",
         f"healthkicks/v1/{TEST_DEVICE_ID}/commands/haptic",
         f"healthkicks/v1/{TEST_DEVICE_ID}/status",
         f"healthkicks/v1/{TEST_DEVICE_ID}/commands/ack",
@@ -150,7 +136,6 @@ def test_settings_dynamic_topics_default_and_override(monkeypatch: pytest.Monkey
     # Vérification des valeurs par défaut dynamiques avec fallback HK-1
     monkeypatch.delenv("EDGE_DEVICE_ID", raising=False)
     monkeypatch.delenv("EDGE_TELEMETRY_TOPIC", raising=False)
-    monkeypatch.delenv("EDGE_FALL_TOPIC", raising=False)
     monkeypatch.delenv("EDGE_COMMAND_TOPIC", raising=False)
     monkeypatch.delenv("EDGE_STATUS_TOPIC", raising=False)
     monkeypatch.delenv("EDGE_ACK_TOPIC", raising=False)
@@ -160,7 +145,6 @@ def test_settings_dynamic_topics_default_and_override(monkeypatch: pytest.Monkey
     assert settings.device_id == TEST_DEVICE_ID
     prefix = f"healthkicks/v1/{TEST_DEVICE_ID}"
     assert settings.telemetry_topic == f"{prefix}/telemetry/raw"
-    assert settings.fall_topic == f"{prefix}/events/fall"
     assert settings.command_topic == f"{prefix}/commands/haptic"
     assert settings.status_topic == f"{prefix}/status"
     assert settings.ack_topic == f"{prefix}/commands/ack"
@@ -175,7 +159,6 @@ def test_settings_dynamic_topics_default_and_override(monkeypatch: pytest.Monkey
     assert settings_custom.device_id == custom_id
     custom_prefix = f"healthkicks/v1/{custom_id}"
     assert settings_custom.telemetry_topic == f"{custom_prefix}/telemetry/raw"
-    assert settings_custom.fall_topic == f"{custom_prefix}/events/fall"
     assert settings_custom.command_topic == f"{custom_prefix}/commands/haptic"
     assert settings_custom.status_topic == f"{custom_prefix}/status"
     assert settings_custom.ack_topic == f"{custom_prefix}/commands/ack"
@@ -187,22 +170,12 @@ def test_lwt_is_flat(monkeypatch: pytest.MonkeyPatch) -> None:
     monkeypatch.setattr(mqtt_handler.mqtt, "Client", FakeMQTTClient)
     handler = MQTTHandler(
         "localhost", 1883, "client", None, None, TEST_DEVICE_ID,
-        "telemetry", "fall", "command", "status", "ack", 30, lambda _: None
+        "telemetry", "command", "status", "ack", 30, lambda _: None
     )
     assert handler.client.will is not None
     assert json.loads(handler.client.will[1]) == {
         "state": "offline", "reason": "unexpected_disconnection"
     }
-
-
-def test_missing_model_uses_heuristic(tmp_path) -> None:
-    falls: list[FallEvent] = []
-    ai = EdgeAI(
-        TEST_DEVICE_ID, str(tmp_path / "model.joblib"), 32, 0,
-        lambda _: None, falls.append, lambda: None
-    )
-    ai.process({"ax": 0, "ay": 0, "az": 30, "gx": 0, "gy": 0, "gz": 0})
-    assert len(falls) == 1
 
 
 def test_expired_command_is_dropped() -> None:

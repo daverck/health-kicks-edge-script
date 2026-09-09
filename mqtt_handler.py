@@ -16,7 +16,6 @@ from schemas import (
     DetectionEvent,
     DeviceStatus,
     DeviceStatusPayload,
-    FallEvent,
     HapticCommand,
     Header,
     StudioCaptureConfig,
@@ -39,7 +38,6 @@ class MQTTHandler:
         password: str | None,
         device_id: str,
         telemetry_topic: str,
-        fall_topic: str,
         command_topic: str,
         status_topic: str,
         ack_topic: str,
@@ -51,7 +49,6 @@ class MQTTHandler:
         detection_topic: str | None = None,
     ) -> None:
         self._device_id = device_id
-        self._fall_topic = fall_topic
         self._telemetry_topic = telemetry_topic
         self._detection_topic = (
             detection_topic or f"healthkicks/v1/{device_id}/events/detection"
@@ -98,9 +95,6 @@ class MQTTHandler:
 
     def publish_batch(self, batch: object) -> None:
         self._publish(self._telemetry_topic, batch.model_dump_json(), qos=0)
-
-    def publish_fall(self, event: FallEvent) -> None:
-        self._publish(self._fall_topic, event.model_dump_json(), qos=1)
 
     def publish_detection(self, event: DetectionEvent) -> None:
         self._publish(self._detection_topic, event.model_dump_json(), qos=1)

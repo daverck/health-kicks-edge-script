@@ -264,7 +264,6 @@ def test_mqtt_publish_detection() -> None:
         password=None,
         device_id="HK-1",
         telemetry_topic="healthkicks/v1/HK-1/telemetry/raw",
-        fall_topic="healthkicks/v1/HK-1/events/fall",
         command_topic="healthkicks/v1/HK-1/commands/haptic",
         status_topic="healthkicks/v1/HK-1/status",
         ack_topic="healthkicks/v1/HK-1/commands/ack",
