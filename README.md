@@ -8,10 +8,10 @@ Local edge agent for Raspberry Pi: Arduino IMU acquisition, real-time edge AI fa
 
 - **IMU Serial Telemetry**: Incoming serial frames from Arduino formatted as `DATA:{"ax":...,"ay":...,"az":...,"gx":...,"gy":...,"gz":...}` are parsed, validated, and normalized with a Pydantic header.
 - **Continuous Local Ingestion**: Telemetry readings continuously feed a sliding FIFO memory buffer on the Raspberry Pi for real-time edge ML fall detection inference.
-- **Real-Time Fall Detection (`inference_engine.py` & `features.py`)**:
+- **Real-Time Fall Detection (`activity_classifier.py` & `features.py`)**:
   - A background inference worker periodically evaluates the rolling IMU window (every 250 ms by default).
   - Computes 16 biomechanical features (acceleration and gyroscope magnitudes, dispersion, dynamic energy) via NumPy.
-  - Runs the trained `fall_detector.joblib` classifier.
+  - Runs the trained `activity_classifier.joblib` classifier.
   - When an event of type `fall_*` is predicted with confidence $\ge 0.65$ outside the cooldown window:
     - Publishes a QoS 1 detection alert to `healthkicks/v1/{device_id}/events/detection`.
     - Triggers emergency haptic pulses on the Arduino (`CMD:VIB:255:500\n`).
@@ -42,7 +42,7 @@ sudo apt install dpkg-dev debhelper
 
 The resulting package is written to the parent directory: `../healthkicks-edge_0.1.0_all.deb`.
 
-The package relies on Debian system Python packages (`python3-paho-mqtt`, `python3-serial`, `python3-pydantic`, `python3-sklearn`, `python3-joblib`, `python3-numpy`), `adduser`, and `mosquitto`. The trained model artifact is bundled in `models/fall_detector.joblib` and automatically packaged to `/opt/healthkicks_edge/models/fall_detector.joblib`.
+The package relies on Debian system Python packages (`python3-paho-mqtt`, `python3-serial`, `python3-pydantic`, `python3-sklearn`, `python3-joblib`, `python3-numpy`), `adduser`, and `mosquitto`. The trained model artifact is bundled in `models/activity_classifier.joblib` and automatically packaged to `/opt/healthkicks_edge/models/activity_classifier.joblib`.
 
 ---
 
@@ -73,7 +73,7 @@ sudo systemctl restart healthkicks_edge.service
 ```
 
 The `/etc/healthkicks_edge/agent.env` configuration file controls device identity, MQTT connection parameters, topics, serial port settings, buffer intervals, model path, and detection thresholds:
-- `EDGE_MODEL_PATH`: Path to the pre-trained fall detection artifact (default: `/opt/healthkicks_edge/models/fall_detector.joblib`). If missing, inference is disabled gracefully without failing the service.
+- `EDGE_MODEL_PATH`: Path to the pre-trained fall detection artifact (default: `/opt/healthkicks_edge/models/activity_classifier.joblib`). If missing, inference is disabled gracefully without failing the service.
 - `EDGE_DETECTION_TOPIC`: MQTT topic for fall alerts (default: `healthkicks/v1/{device_id}/events/detection`).
 - `EDGE_INFERENCE_INTERVAL_SEC`: Evaluation frequency in seconds (default: `0.25`).
 - `EDGE_CONFIDENCE_THRESHOLD`: Minimum model probability for triggering an alert (default: `0.65`).

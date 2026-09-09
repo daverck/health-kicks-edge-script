@@ -9,8 +9,8 @@ import numpy as np
 import pytest
 from pydantic import ValidationError
 
+from activity_classifier import ActivityClassifier
 from features import FEATURE_NAMES, compute_window_features, extract_feature_vector
-from inference_engine import EdgeInferenceEngine, FallDetector
 from schemas import DetectionEvent, DetectionMetadata, Header, ImuPayload, Telemetry
 
 
@@ -97,61 +97,59 @@ def test_extract_feature_vector_shape() -> None:
 # -----------------------------------------------------------------------------
 # 2. Inference Engine & Model Loading Tests
 # -----------------------------------------------------------------------------
-def test_fall_detector_missing_model_graceful_degradation(
+def test_activity_classifier_missing_model_graceful_degradation(
     tmp_path: Path, caplog: pytest.LogCaptureFixture
 ) -> None:
-    missing_path = tmp_path / "non_existent_fall_detector.joblib"
+    missing_path = tmp_path / "non_existent_activity_classifier.joblib"
     with caplog.at_level("WARNING"):
-        detector = FallDetector(model_path=missing_path)
+        classifier = ActivityClassifier(model_path=missing_path)
 
-    assert detector.is_loaded is False
+    assert classifier.is_loaded is False
     assert "Inference disabled: model file not found" in caplog.text
     # Prediction should return None without crashing
     readings = [{"ax": 0, "ay": 0, "az": 9.8, "gx": 0, "gy": 0, "gz": 0} for _ in range(20)]
-    assert detector.predict(readings) is None
-    assert detector.evaluate_window(readings, device_id="HK-1") is None
+    assert classifier.predict(readings) is None
+    assert classifier.evaluate_window(readings, device_id="HK-1") is None
 
 
-def test_fall_detector_load_real_trained_model_if_present() -> None:
-    repo_path = Path(__file__).resolve().parent.parent / "models" / "fall_detector.joblib"
-    dev_path = Path(r"F:\Programmation\health-kicks\scripts\models\fall_detector.joblib")
-    model_path = repo_path if repo_path.exists() else dev_path
-    if not model_path.exists():
+def test_activity_classifier_load_real_trained_model_if_present() -> None:
+    repo_path = Path(__file__).resolve().parent.parent / "models" / "activity_classifier.joblib"
+    if not repo_path.exists():
         pytest.skip("Pre-trained model file not present")
 
-    detector = FallDetector(model_path=model_path)
-    assert detector.is_loaded is True
-    assert detector.model_name == "HistGradientBoosting"
-    assert len(detector.feature_names) == 16
-    assert "fall_forward" in detector.classes
-    assert detector.window_size_sec == 2.0
+    classifier = ActivityClassifier(model_path=repo_path)
+    assert classifier.is_loaded is True
+    assert classifier.model_name == "HistGradientBoosting"
+    assert len(classifier.feature_names) == 16
+    assert "fall_forward" in classifier.classes
+    assert classifier.window_size_sec == 2.0
 
     # Test prediction with stationary samples (should be walk, not fall)
     stationary = [{"ax": 0, "ay": 9.81, "az": 0, "gx": 0, "gy": 0, "gz": 0} for _ in range(50)]
-    res = detector.predict(stationary)
+    res = classifier.predict(stationary)
     assert res is not None
     label, confidence = res
     assert isinstance(label, str)
     assert 0.0 <= confidence <= 1.0
     # A stationary signal is not a fall
-    assert detector.evaluate_window(stationary, device_id="HK-1") is None
+    assert classifier.evaluate_window(stationary, device_id="HK-1") is None
 
 
-def test_fall_detector_with_mock_estimator() -> None:
+def test_activity_classifier_with_mock_estimator() -> None:
     mock_estimator = MagicMock()
     mock_estimator.predict_proba.return_value = np.array([[0.05, 0.85, 0.10]])
 
-    detector = FallDetector(min_samples=5)
-    detector.estimator = mock_estimator
-    detector.classes = ["walk", "fall_forward", "stairs"]
-    detector.model_name = "MockClassifier"
-    detector.window_size_sec = 2.0
+    classifier = ActivityClassifier(min_samples=5)
+    classifier.estimator = mock_estimator
+    classifier.classes = ["walk", "fall_forward", "stairs"]
+    classifier.model_name = "MockClassifier"
+    classifier.window_size_sec = 2.0
 
     readings = [{"ax": 0, "ay": 9.8, "az": 0, "gx": 0, "gy": 0, "gz": 0} for _ in range(10)]
-    prediction = detector.predict(readings)
+    prediction = classifier.predict(readings)
     assert prediction == ("fall_forward", 0.85)
 
-    event = detector.evaluate_window(readings, device_id="HK-1")
+    event = classifier.evaluate_window(readings, device_id="HK-1")
     assert event is not None
     assert event.device_id == "HK-1"
     assert event.event_type == "fall_forward"
@@ -164,57 +162,57 @@ def test_fall_detector_with_mock_estimator() -> None:
 # -----------------------------------------------------------------------------
 # 3. Debounce / Cooldown Logic Tests
 # -----------------------------------------------------------------------------
-def test_fall_detector_debouncing_cooldown() -> None:
+def test_activity_classifier_debouncing_cooldown() -> None:
     mock_estimator = MagicMock()
     mock_estimator.predict_proba.return_value = np.array([[0.1, 0.9]])
 
     simulated_clock = 100.0
 
-    detector = FallDetector(
+    classifier = ActivityClassifier(
         cooldown_sec=5.0,
         confidence_threshold=0.65,
         min_samples=5,
         time_fn=lambda: simulated_clock,
     )
-    detector.estimator = mock_estimator
-    detector.classes = ["walk", "fall_forward"]
-    detector.model_name = "DebounceTestModel"
+    classifier.estimator = mock_estimator
+    classifier.classes = ["walk", "fall_forward"]
+    classifier.model_name = "DebounceTestModel"
 
     readings = [{"ax": 0, "ay": 9.8, "az": 0, "gx": 0, "gy": 0, "gz": 0} for _ in range(10)]
 
     # 1. First event triggers normally
-    event1 = detector.evaluate_window(readings, device_id="HK-1")
+    event1 = classifier.evaluate_window(readings, device_id="HK-1")
     assert event1 is not None
     assert event1.event_type == "fall_forward"
 
     # 2. Immediate next evaluation (same timestamp) must be debounced / suppressed
-    event2 = detector.evaluate_window(readings, device_id="HK-1")
+    event2 = classifier.evaluate_window(readings, device_id="HK-1")
     assert event2 is None
 
     # 3. Advancing time to 103.0s (+3.0s < 5.0s cooldown) must still be suppressed
     simulated_clock = 103.0
-    event3 = detector.evaluate_window(readings, device_id="HK-1")
+    event3 = classifier.evaluate_window(readings, device_id="HK-1")
     assert event3 is None
 
     # 4. Advancing time past 5.0s cooldown (e.g. 105.1s) allows a new detection
     simulated_clock = 105.1
-    event4 = detector.evaluate_window(readings, device_id="HK-1")
+    event4 = classifier.evaluate_window(readings, device_id="HK-1")
     assert event4 is not None
     assert event4.event_type == "fall_forward"
 
 
-def test_fall_detector_confidence_threshold_suppression() -> None:
+def test_activity_classifier_confidence_threshold_suppression() -> None:
     mock_estimator = MagicMock()
     # Confidence is 0.55, which is below the 0.65 threshold
     mock_estimator.predict_proba.return_value = np.array([[0.45, 0.55]])
 
-    detector = FallDetector(confidence_threshold=0.65, min_samples=5)
-    detector.estimator = mock_estimator
-    detector.classes = ["walk", "fall_forward"]
-    detector.model_name = "ThresholdTest"
+    classifier = ActivityClassifier(confidence_threshold=0.65, min_samples=5)
+    classifier.estimator = mock_estimator
+    classifier.classes = ["walk", "fall_forward"]
+    classifier.model_name = "ThresholdTest"
 
     readings = [{"ax": 0, "ay": 9.8, "az": 0, "gx": 0, "gy": 0, "gz": 0} for _ in range(10)]
-    event = detector.evaluate_window(readings, device_id="HK-1")
+    event = classifier.evaluate_window(readings, device_id="HK-1")
     assert event is None
 
 
@@ -310,8 +308,8 @@ def test_settings_resolves_repo_model_path(monkeypatch: pytest.MonkeyPatch) -> N
     settings = Settings.from_env()
 
     # The bundled model in repo should be resolved if /opt default doesn't exist
-    repo_model = Path(__file__).resolve().parent.parent / "models" / "fall_detector.joblib"
-    default_model = Path("/opt/healthkicks_edge/models/fall_detector.joblib")
+    repo_model = Path(__file__).resolve().parent.parent / "models" / "activity_classifier.joblib"
+    default_model = Path("/opt/healthkicks_edge/models/activity_classifier.joblib")
 
     if default_model.exists():
         assert settings.model_path == str(default_model)

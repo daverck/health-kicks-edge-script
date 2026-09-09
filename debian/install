@@ -1,6 +1,6 @@
-main.py config.py schemas.py serial_handler.py ai_engine.py features.py inference_engine.py mqtt_handler.py telemetry_buffer.py studio_manager.py opt/healthkicks_edge/
+main.py config.py schemas.py serial_handler.py ai_engine.py features.py activity_classifier.py mqtt_handler.py telemetry_buffer.py studio_manager.py opt/healthkicks_edge/
 debian/agent.env.example etc/healthkicks_edge/
 debian/aws-bridge.conf etc/mosquitto/conf.d/
 debian/healthkicks_edge.service usr/lib/systemd/system/
-models/fall_detector.joblib opt/healthkicks_edge/models/
+models/activity_classifier.joblib opt/healthkicks_edge/models/
 README.md usr/share/doc/healthkicks-edge/

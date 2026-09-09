@@ -4,9 +4,9 @@ import logging
 import signal
 import threading
 
+from activity_classifier import ActivityClassifier
 from ai_engine import EdgeAI
 from config import Settings
-from inference_engine import FallDetector
 from mqtt_handler import MQTTHandler
 from serial_handler import SerialHandler
 from studio_manager import StudioManager
@@ -55,7 +55,7 @@ def main() -> None:
         on_fall=on_fall,
         on_emergency_haptic=emergency_haptic,
     )
-    fall_detector = FallDetector(
+    activity_classifier = ActivityClassifier(
         model_path=settings.model_path,
         cooldown_sec=settings.detection_cooldown_seconds,
         confidence_threshold=settings.confidence_threshold,
@@ -100,12 +100,12 @@ def main() -> None:
         while not stop_event.wait(interval):
             if studio_manager.is_running:
                 continue
-            if not fall_detector.is_loaded:
+            if not activity_classifier.is_loaded:
                 continue
             snapshot = telemetry_buffer.recent_readings
-            if len(snapshot) < fall_detector.min_samples:
+            if len(snapshot) < activity_classifier.min_samples:
                 continue
-            event = fall_detector.evaluate_window(snapshot, device_id=settings.device_id)
+            event = activity_classifier.evaluate_window(snapshot, device_id=settings.device_id)
             if event is not None:
                 mqtt_handler.publish_detection(event)
                 emergency_haptic()

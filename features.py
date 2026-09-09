@@ -3,7 +3,7 @@ from __future__ import annotations
 from typing import Any, Sequence
 import numpy as np
 
-# Canonical 16 biomechanical features in order expected by fall_detector.joblib
+# Canonical 16 biomechanical features in order expected by activity_classifier.joblib
 FEATURE_NAMES: list[str] = [
     "acc_mag_max",
     "acc_mag_min",

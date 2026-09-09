@@ -18,8 +18,8 @@ from schemas import DetectionEvent, DetectionMetadata
 LOGGER = logging.getLogger(__name__)
 
 
-class FallDetector:
-    """Edge inference engine for real-time IMU fall detection.
+class ActivityClassifier:
+    """Edge inference engine for real-time IMU activity and fall classification.
 
     Loads a trained joblib model, processes rolling IMU windows, extracts
     16 biomechanical features, and generates timestamped detection events
@@ -90,7 +90,7 @@ class FallDetector:
                     self.window_size_sec = 2.0
 
             LOGGER.info(
-                "fall_detector_loaded model=%s features=%d classes=%s window_size=%.1fs path=%s",
+                "activity_classifier_loaded model=%s features=%d classes=%s window_size=%.1fs path=%s",
                 self.model_name,
                 len(self.feature_names),
                 self.classes,
@@ -99,7 +99,7 @@ class FallDetector:
             )
             return True
         except Exception as exc:
-            LOGGER.error("fall_detector_load_failed path=%s error=%s", path_str, exc)
+            LOGGER.error("activity_classifier_load_failed path=%s error=%s", path_str, exc)
             return False
 
     def predict(
@@ -202,7 +202,3 @@ class FallDetector:
             confidence,
         )
         return event
-
-
-# Alias for alternative naming convention
-EdgeInferenceEngine = FallDetector
