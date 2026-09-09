@@ -50,7 +50,7 @@ The package relies on Debian system Python packages (`python3-paho-mqtt`, `pytho
 
 ### 1. Set the Device Identifier
 
-Define the hardware device identifier (`EDGE_DEVICE_ID`) prior to package installation. The `postinst` script uses this variable to automatically configure `/etc/healthkicks_edge/agent.env` and parameterize the Mosquitto bridge topic routing rules in `/etc/mosquitto/conf.d/aws-bridge.conf`:
+Define the hardware device identifier (`EDGE_DEVICE_ID`) prior to package installation. The `postinst` script uses this variable to automatically configure `/etc/healthkicks_edge/healthkicks_edge.env` and parameterize the Mosquitto bridge topic routing rules in `/etc/mosquitto/conf.d/aws-bridge.conf`:
 
 ```sh
 # Define the hardware device identifier (e.g. HK-1, HK-2, etc.)
@@ -68,11 +68,11 @@ sudo -E apt install ./healthkicks-edge_0.1.0_all.deb
 Edit the environment file if custom adjustments (such as serial port or broker credentials) are required:
 
 ```sh
-sudoedit /etc/healthkicks_edge/agent.env
+sudoedit /etc/healthkicks_edge/healthkicks_edge.env
 sudo systemctl restart healthkicks_edge.service
 ```
 
-The `/etc/healthkicks_edge/agent.env` configuration file controls device identity, MQTT connection parameters, topics, serial port settings, buffer intervals, model path, and detection thresholds:
+The `/etc/healthkicks_edge/healthkicks_edge.env` configuration file controls device identity, MQTT connection parameters, topics, serial port settings, buffer intervals, model path, and detection thresholds:
 - `EDGE_MODEL_PATH`: Path to the pre-trained fall detection artifact (default: `/opt/healthkicks_edge/models/activity_classifier.joblib`). If missing, inference is disabled gracefully without failing the service.
 - `EDGE_DETECTION_TOPIC`: MQTT topic for fall alerts (default: `healthkicks/v1/{device_id}/events/detection`).
 - `EDGE_INFERENCE_INTERVAL_SEC`: Evaluation frequency in seconds (default: `0.25`).

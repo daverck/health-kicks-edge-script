@@ -21,27 +21,27 @@ fi
 #    prior to service installation, or fallback to existing configuration / default "HK-1"
 TARGET_DEVICE_ID="${EDGE_DEVICE_ID:-${DEVICE_ID:-}}"
 
-if [ -z "$TARGET_DEVICE_ID" ] && [ -f /etc/healthkicks_edge/agent.env ]; then
-    TARGET_DEVICE_ID=$(grep -E '^[[:space:]]*EDGE_DEVICE_ID=' /etc/healthkicks_edge/agent.env | head -n 1 | cut -d'=' -f2- | tr -d '"'\'' ')
+if [ -z "$TARGET_DEVICE_ID" ] && [ -f /etc/healthkicks_edge/healthkicks_edge.env ]; then
+    TARGET_DEVICE_ID=$(grep -E '^[[:space:]]*EDGE_DEVICE_ID=' /etc/healthkicks_edge/healthkicks_edge.env | head -n 1 | cut -d'=' -f2- | tr -d '"'\'' ')
 fi
 
 if [ -z "$TARGET_DEVICE_ID" ]; then
     TARGET_DEVICE_ID="HK-1"
 fi
 
-# 4. Generate /etc/healthkicks_edge/agent.env with the target device ID
-if [ ! -f /etc/healthkicks_edge/agent.env ]; then
+# 4. Generate /etc/healthkicks_edge/healthkicks_edge.env with the target device ID
+if [ ! -f /etc/healthkicks_edge/healthkicks_edge.env ]; then
     sed -e "s|HK-1|${TARGET_DEVICE_ID}|g" \
         -e "s|healthkicks-pi-001|${TARGET_DEVICE_ID}|g" \
-        /etc/healthkicks_edge/agent.env.example > /etc/healthkicks_edge/agent.env
-    chown healthkicks_edge:healthkicks_edge /etc/healthkicks_edge/agent.env
-    chmod 0600 /etc/healthkicks_edge/agent.env
+        /etc/healthkicks_edge/healthkicks_edge.env.example > /etc/healthkicks_edge/healthkicks_edge.env
+    chown healthkicks_edge:healthkicks_edge /etc/healthkicks_edge/healthkicks_edge.env
+    chmod 0600 /etc/healthkicks_edge/healthkicks_edge.env
 else
-    # If explicitly specified in environment on upgrade/reinstall, update existing agent.env
+    # If explicitly specified in environment on upgrade/reinstall, update existing healthkicks_edge.env
     if [ -n "${EDGE_DEVICE_ID:-${DEVICE_ID:-}}" ]; then
-        sed -i -E "s|^[[:space:]]*EDGE_DEVICE_ID=.*|EDGE_DEVICE_ID=${TARGET_DEVICE_ID}|" /etc/healthkicks_edge/agent.env
-        sed -i -E "s|healthkicks/v1/[^/]+|healthkicks/v1/${TARGET_DEVICE_ID}|g" /etc/healthkicks_edge/agent.env
-        sed -i -E "s|^[[:space:]]*EDGE_MQTT_CLIENT_ID=.*|EDGE_MQTT_CLIENT_ID=${TARGET_DEVICE_ID}-edge|" /etc/healthkicks_edge/agent.env
+        sed -i -E "s|^[[:space:]]*EDGE_DEVICE_ID=.*|EDGE_DEVICE_ID=${TARGET_DEVICE_ID}|" /etc/healthkicks_edge/healthkicks_edge.env
+        sed -i -E "s|healthkicks/v1/[^/]+|healthkicks/v1/${TARGET_DEVICE_ID}|g" /etc/healthkicks_edge/healthkicks_edge.env
+        sed -i -E "s|^[[:space:]]*EDGE_MQTT_CLIENT_ID=.*|EDGE_MQTT_CLIENT_ID=${TARGET_DEVICE_ID}-edge|" /etc/healthkicks_edge/healthkicks_edge.env
     fi
 fi
 
