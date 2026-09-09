@@ -24,7 +24,7 @@ def test_haptic_countdown_and_flush_sequence() -> None:
     mock_buffer = MagicMock()
     mock_buffer.flush.return_value = 10
 
-    # sleep_fn instantané pour test unitaire rapide
+    # Instant sleep_fn for fast unit test
     manager = StudioManager(
         serial_handler=mock_serial,
         telemetry_buffer=mock_buffer,
@@ -45,12 +45,12 @@ def test_haptic_countdown_and_flush_sequence() -> None:
     started = manager.start_capture(config)
     assert started is True
 
-    # Attente de la fin du thread
+    # Wait for thread completion
     finished = manager.wait_completion(timeout=2.0)
     assert finished is True
     assert not manager.is_running
 
-    # Vérification que enqueue_haptic a été appelé exactement 3 fois avec (180, 150)
+    # Verify enqueue_haptic was called exactly 3 times with (180, 150)
     assert mock_serial.enqueue_haptic.call_count == 3
     mock_serial.enqueue_haptic.assert_has_calls([
         call(180, 150),
@@ -58,7 +58,7 @@ def test_haptic_countdown_and_flush_sequence() -> None:
         call(180, 150),
     ])
 
-    # Vérification des flushes : d'abord nominal pour vider l'antérieur, puis studio
+    # Verify flushes: first nominal to flush previous data, then studio
     assert mock_buffer.flush.call_count == 2
     mock_buffer.flush.assert_has_calls([
         call("time_interval"),
@@ -88,16 +88,16 @@ def test_concurrency_guard() -> None:
     assert started1 is True
     assert manager.is_running is True
 
-    # Tentative d'une deuxième session alors que la première tourne
+    # Attempt second session while first is still running
     started2 = manager.start_capture(config2)
     assert started2 is False
 
-    # Libération du thread
+    # Release thread
     release_sleep.set()
     manager.wait_completion(timeout=2.0)
     assert manager.is_running is False
 
-    # Une nouvelle session peut maintenant démarrer
+    # A new session can now start
     started3 = manager.start_capture(config2)
     assert started3 is True
     manager.wait_completion(timeout=2.0)
@@ -112,7 +112,7 @@ def test_active_session_metadata_lifecycle() -> None:
     unblock_recording = threading.Event()
 
     def step_sleep(seconds: float) -> None:
-        if seconds > 1.0:  # attente pendant la capture duration_sec
+        if seconds > 1.0:  # wait during duration_sec capture
             step_event.set()
             unblock_recording.wait(timeout=2.0)
 
@@ -128,12 +128,12 @@ def test_active_session_metadata_lifecycle() -> None:
     config = StudioCaptureConfig(session_id="meta-session", label="stairs", duration_sec=5.0)
     manager.start_capture(config)
 
-    # Attente que l'orchestrateur atteigne la phase d'enregistrement
+    # Wait for orchestrator to reach recording phase
     step_event.wait(timeout=2.0)
     assert manager.is_recording is True
     assert manager.get_active_session_metadata() == ("meta-session", "stairs")
 
-    # Débloque la fin de session
+    # Unblock session completion
     unblock_recording.set()
     manager.wait_completion(timeout=2.0)
 

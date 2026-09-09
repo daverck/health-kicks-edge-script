@@ -9,6 +9,7 @@ import threading
 import time
 from datetime import datetime, timezone
 from uuid import uuid4
+from typing import Any
 
 from config import Settings
 from schemas import Header, ImuPayload, StudioCaptureConfig, Telemetry, TelemetryBatch
@@ -208,3 +209,4 @@ def main() -> int:
 
 if __name__ == "__main__":
     sys.exit(main())
+

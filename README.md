@@ -1,6 +1,6 @@
 # HealthKicks Edge Agent (`healthkicks_edge`)
 
-Local edge agent for Raspberry Pi: Arduino IMU acquisition, real-time edge AI anomaly detection (IsolationForest), and haptic actuator control via local Mosquitto, bridged to AWS IoT Core.
+Local edge agent for Raspberry Pi: Arduino IMU acquisition, real-time edge AI fall detection inference, and haptic actuator control via local Mosquitto, bridged to AWS IoT Core.
 
 ---
 
@@ -8,19 +8,26 @@ Local edge agent for Raspberry Pi: Arduino IMU acquisition, real-time edge AI an
 
 - **IMU Serial Telemetry**: Incoming serial frames from Arduino formatted as `DATA:{"ax":...,"ay":...,"az":...,"gx":...,"gy":...,"gz":...}` are parsed, validated, and normalized with a Pydantic header.
 - **Continuous Local Ingestion**: Telemetry readings continuously feed a sliding FIFO memory buffer on the Raspberry Pi for real-time edge ML fall detection inference.
-- **Fall Detection**: When the local ML model detects an anomaly, it immediately triggers an emergency haptic pulse on the Arduino (`CMD:VIB:255:500\n`) and publishes a QoS 1 event to `healthkicks/v1/{device_id}/events/fall`.
+- **Real-Time Fall Detection (`inference_engine.py` & `features.py`)**:
+  - A background inference worker periodically evaluates the rolling IMU window (every 250 ms by default).
+  - Computes 16 biomechanical features (acceleration and gyroscope magnitudes, dispersion, dynamic energy) via NumPy.
+  - Runs the trained `fall_detector.joblib` classifier.
+  - When an event of type `fall_*` is predicted with confidence $\ge 0.65$ outside the cooldown window:
+    - Publishes a QoS 1 detection alert to `healthkicks/v1/{device_id}/events/detection`.
+    - Triggers emergency haptic pulses on the Arduino (`CMD:VIB:255:500\n`).
+    - Enforces a 5.0-second cooldown (debouncing) to prevent MQTT event spam for a single fall incident.
 - **Haptic Actuation**: Incoming MQTT haptic commands (`intensity` 0–255, `duration_ms` 50–10000) are converted to serial frames: `CMD:VIB:<intensity>:<duration_ms>\n`.
 - **Bidirectional Acknowledgment**: Arduino telemetry frames use the `DATA:` prefix. Firmware acknowledgments (`ACK:VIB:OK` and `ERR:VIB:INVALID`) are logged and forwarded to `healthkicks/v1/{device_id}/commands/ack`.
 - **Device Status & LWT**: Heartbeat messages are periodically published to `healthkicks/v1/{device_id}/status` with an automatic Last Will and Testament (LWT) ensuring offline state reporting upon disconnection.
 - **Studio Capture Mode**: On-demand IMU recording sessions triggered remotely from the Cloud or locally:
   1. A sensory haptic countdown (3 alert pulses: 150 ms ON / 350 ms OFF) is played via a dedicated background thread without interrupting serial sensor reading.
-  2. Any pre-existing telemetry is cleared.
+  2. Any pre-existing nominal telemetry is cleared, and inference is paused during the capture window.
   3. A timed IMU capture window (default 5.0 seconds) records readings tagged with `session_id` and `label`.
   4. At window close, the batch is immediately flushed to `healthkicks/v1/{device_id}/telemetry/raw` with metadata trigger `"studio"`.
 - **Continuous Telemetry Flag (`EDGE_CONTINUOUSLY_SEND_TELEMETRY`)**:
   - `false` (default): Nominal periodic flushes only recycle local staging memory without publishing to AWS IoT Core, conserving network bandwidth. Only explicit Studio capture sessions are sent to the Cloud.
   - `true`: All nominal periodic telemetry batches are forwarded to AWS IoT Core in real time.
-- **AWS IoT Core Bridge**: A local Mosquitto bridge (`aws-iot-bridge`) securely forwards telemetry batches to AWS IoT Core and subscribes to incoming commands using TLS mutual authentication.
+- **AWS IoT Core Bridge**: A local Mosquitto bridge (`aws-iot-bridge`) securely forwards telemetry batches and detection events to AWS IoT Core and subscribes to incoming commands using TLS mutual authentication.
 
 ---
 
@@ -56,9 +63,6 @@ sudo -E apt install ./healthkicks-edge_0.1.0_all.deb
 # sudo EDGE_DEVICE_ID="HK-1" dpkg -i healthkicks-edge_0.1.0_all.deb
 ```
 
-> [!NOTE]
-> If `EDGE_DEVICE_ID` is not defined prior to installation, the fallback default identifier `HK-1` is applied automatically.
-
 ### 2. Configuration & Service Management
 
 Edit the environment file if custom adjustments (such as serial port or broker credentials) are required:
@@ -68,9 +72,12 @@ sudoedit /etc/healthkicks_edge/agent.env
 sudo systemctl restart healthkicks_edge.service
 ```
 
-The `/etc/healthkicks_edge/agent.env` configuration file controls device identity, MQTT connection parameters, topics, serial port settings, buffer intervals, and AI thresholds. It is intentionally excluded from Git; reference defaults are documented in `healthkicks_edge.env.example`.
-
-The `healthkicks_edge` system user is automatically added to the `dialout` group for serial port access.
+The `/etc/healthkicks_edge/agent.env` configuration file controls device identity, MQTT connection parameters, topics, serial port settings, buffer intervals, model path, and detection thresholds:
+- `EDGE_MODEL_PATH`: Path to the pre-trained fall detection artifact (default: `/etc/healthkicks/models/fall_detector.joblib`). If missing, inference is disabled gracefully without failing the service.
+- `EDGE_DETECTION_TOPIC`: MQTT topic for fall alerts (default: `healthkicks/v1/{device_id}/events/detection`).
+- `EDGE_INFERENCE_INTERVAL_SEC`: Evaluation frequency in seconds (default: `0.25`).
+- `EDGE_CONFIDENCE_THRESHOLD`: Minimum model probability for triggering an alert (default: `0.65`).
+- `EDGE_DETECTION_COOLDOWN_SEC`: Cooldown in seconds before a new alert can be emitted (default: `5.0`).
 
 Monitor live service logs:
 
@@ -84,7 +91,7 @@ sudo journalctl -u healthkicks_edge.service -f
 
 ### 1. Certificates and ATS Endpoint
 
-In the AWS IoT Core console, create a Thing and use the **Connect Device** workflow to generate credentials and download the Linux/macOS connection kit (ZIP). The archive contains:
+In the AWS IoT Core console, create a Thing and use the **Connect Device** workflow to generate credentials and download the connection kit (ZIP). The archive contains:
 
 - `AmazonRootCA1.pem` — Amazon Root CA certificate;
 - `device.pem.crt` — Device certificate;
@@ -120,6 +127,7 @@ Attach the following policy to the device certificate, ensuring `HK-1` matches y
       "Action": ["iot:Publish", "iot:Receive"],
       "Resource": [
         "arn:aws:iot:eu-north-1:693906847467:topic/healthkicks/v1/HK-1/telemetry/raw",
+        "arn:aws:iot:eu-north-1:693906847467:topic/healthkicks/v1/HK-1/events/detection",
         "arn:aws:iot:eu-north-1:693906847467:topic/healthkicks/v1/HK-1/commands/haptic",
         "arn:aws:iot:eu-north-1:693906847467:topic/healthkicks/v1/HK-1/commands/studio/start"
       ]
@@ -169,16 +177,16 @@ uv run python -m scripts.test_studio_local --simulate --label sprint --duration 
 CLI options:
 - `--label`: Activity label (e.g. `walk`, `run`, `fall`, `stairs`).
 - `--duration`: Capture duration in seconds (1.0 to 30.0).
-- `--session-id`: Unique UUID session identifier (generated automatically if omitted).
+- `--session-id`: Unique UUID session identifier.
 - `--pulse-count`: Number of alert countdown vibration pulses (default: 3).
 - `--pulse-duration-ms`: Pulse ON duration in milliseconds (default: 150).
 - `--pulse-pause-ms`: Pulse OFF interval in milliseconds (default: 350).
 - `--pulse-intensity`: Haptic intensity PWM 50–255 (default: 180).
-- `--simulate`: Emits synthetic 50 Hz IMU telemetry without opening physical serial hardware.
+- `--simulate`: Emits synthetic 50 Hz IMU telemetry.
 
 ---
 
-## Development with uv
+## Development
 
 ```sh
 # Install Python dependencies
@@ -190,4 +198,3 @@ uv run python main.py
 # Execute the test suite
 uv run pytest
 ```
-

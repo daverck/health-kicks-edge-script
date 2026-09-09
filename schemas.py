@@ -91,3 +91,16 @@ class StudioCaptureConfig(StrictModel):
     pulse_intensity: int = Field(default=180, ge=50, le=255)
 
 
+class DetectionMetadata(StrictModel):
+    model_name: str = Field(min_length=1)
+    window_size_sec: float = Field(gt=0.0)
+
+
+class DetectionEvent(StrictModel):
+    device_id: str = Field(min_length=1)
+    event_type: str = Field(min_length=1)
+    confidence: float = Field(ge=0.0, le=1.0)
+    timestamp: int = Field(ge=0)
+    metadata: DetectionMetadata
+
+

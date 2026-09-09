@@ -34,7 +34,7 @@ def test_nominal_telemetry_batch_serialization() -> None:
     assert batch.metadata.label is None
     assert batch.metadata.flush_trigger == "time_interval"
 
-    # Vérification de la sérialisation JSON
+    # Verify JSON serialization
     raw_json = batch.model_dump_json()
     payload = json.loads(raw_json)
 
@@ -43,7 +43,7 @@ def test_nominal_telemetry_batch_serialization() -> None:
     assert payload["metadata"]["flush_trigger"] == "time_interval"
     assert payload["metadata"]["sample_count"] == 1
 
-    # Vérification de la désérialisation
+    # Verify deserialization
     restored = TelemetryBatch.model_validate_json(raw_json)
     assert restored.metadata.session_id is None
     assert restored.metadata.label is None
@@ -73,7 +73,7 @@ def test_studio_telemetry_batch_serialization() -> None:
     assert batch.metadata.label == label
     assert batch.metadata.flush_trigger == "studio"
 
-    # Vérification du JSON produit
+    # Verify produced JSON
     raw_json = batch.model_dump_json()
     payload = json.loads(raw_json)
 
@@ -81,7 +81,7 @@ def test_studio_telemetry_batch_serialization() -> None:
     assert payload["metadata"]["label"] == label
     assert payload["metadata"]["flush_trigger"] == "studio"
 
-    # Validation Pydantic aller-retour
+    # Pydantic round-trip validation
     restored = TelemetryBatch.model_validate_json(raw_json)
     assert restored.metadata.session_id == session_id
     assert restored.metadata.label == label
@@ -182,7 +182,7 @@ def test_telemetry_buffer_flush_studio() -> None:
 def test_batch_metadata_field_constraints() -> None:
     now = datetime.now(timezone.utc)
 
-    # Longueur maximale session_id (128)
+    # Maximum length session_id (128)
     valid_session = "s" * 128
     meta = BatchMetadata(
         sample_count=1,
@@ -202,7 +202,7 @@ def test_batch_metadata_field_constraints() -> None:
             session_id="s" * 129,
         )
 
-    # Longueur maximale label (64)
+    # Maximum length label (64)
     valid_label = "l" * 64
     meta_label = BatchMetadata(
         sample_count=1,
@@ -222,7 +222,7 @@ def test_batch_metadata_field_constraints() -> None:
             label="l" * 65,
         )
 
-    # Interdiction des champs supplémentaires (extra='forbid')
+    # Disallow extra fields (extra='forbid')
     with pytest.raises(ValidationError):
         BatchMetadata.model_validate({
             "sample_count": 1,
@@ -232,7 +232,7 @@ def test_batch_metadata_field_constraints() -> None:
             "unknown_field": "invalid",
         })
 
-    # Valeurs invalides pour flush_trigger
+    # Invalid flush_trigger values
     with pytest.raises(ValidationError):
         BatchMetadata(
             sample_count=1,

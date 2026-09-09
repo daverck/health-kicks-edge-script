@@ -6,6 +6,7 @@ import threading
 
 from ai_engine import EdgeAI
 from config import Settings
+from inference_engine import FallDetector
 from mqtt_handler import MQTTHandler
 from serial_handler import SerialHandler
 from studio_manager import StudioManager
@@ -54,6 +55,11 @@ def main() -> None:
         on_fall=on_fall,
         on_emergency_haptic=emergency_haptic,
     )
+    fall_detector = FallDetector(
+        model_path=settings.model_path,
+        cooldown_sec=settings.detection_cooldown_seconds,
+        confidence_threshold=settings.confidence_threshold,
+    )
     mqtt_handler = MQTTHandler(
         host=settings.mqtt_host,
         port=settings.mqtt_port,
@@ -72,6 +78,7 @@ def main() -> None:
         ),
         studio_command_topic=settings.studio_command_topic,
         on_studio_command=lambda config: studio_manager.start_capture(config),
+        detection_topic=settings.detection_topic,
     )
     serial_handler = SerialHandler(
         device=settings.serial_device,
@@ -88,6 +95,21 @@ def main() -> None:
     )
     mqtt_handler.set_studio_manager(studio_manager)
 
+    def inference_loop() -> None:
+        interval = settings.inference_interval_seconds
+        while not stop_event.wait(interval):
+            if studio_manager.is_running:
+                continue
+            if not fall_detector.is_loaded:
+                continue
+            snapshot = telemetry_buffer.recent_readings
+            if len(snapshot) < fall_detector.min_samples:
+                continue
+            event = fall_detector.evaluate_window(snapshot, device_id=settings.device_id)
+            if event is not None:
+                mqtt_handler.publish_detection(event)
+                emergency_haptic()
+
     def request_shutdown(signum: int, _: object) -> None:
         logging.getLogger(__name__).info("shutdown_signal signal=%s", signum)
         stop_event.set()
@@ -96,9 +118,12 @@ def main() -> None:
     signal.signal(signal.SIGINT, request_shutdown)
     serial_thread = threading.Thread(target=serial_handler.run, name="serial-reader", daemon=True)
     heartbeat_thread = threading.Thread(target=mqtt_handler.heartbeat_loop, name="heartbeat", daemon=True)
+    inference_thread = threading.Thread(target=inference_loop, name="inference-worker", daemon=True)
+
     serial_thread.start()
     mqtt_handler.start()
     heartbeat_thread.start()
+    inference_thread.start()
 
     try:
         while not stop_event.wait(1.0):
@@ -110,6 +135,7 @@ def main() -> None:
         mqtt_handler.stop()
         serial_thread.join(timeout=3.0)
         heartbeat_thread.join(timeout=3.0)
+        inference_thread.join(timeout=2.0)
 
 
 if __name__ == "__main__":

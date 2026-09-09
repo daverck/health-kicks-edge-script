@@ -29,11 +29,32 @@ class Settings:
     log_level: str
     studio_command_topic: str = ""
     continuously_send_telemetry: bool = False
+    detection_topic: str = ""
+    inference_interval_seconds: float = 0.25
+    confidence_threshold: float = 0.65
+    detection_cooldown_seconds: float = 5.0
 
     @classmethod
     def from_env(cls) -> Settings:
         device_id = os.getenv("EDGE_DEVICE_ID", "HK-1")
         prefix = f"healthkicks/v1/{device_id}"
+
+        default_model_path = "/etc/healthkicks/models/fall_detector.joblib"
+        dev_model_path = r"F:\Programmation\health-kicks\scripts\models\fall_detector.joblib"
+        legacy_model_path = "/var/lib/healthkicks/model.joblib"
+
+        env_model_path = os.getenv("EDGE_MODEL_PATH")
+        if env_model_path:
+            resolved_model_path = env_model_path
+        elif os.path.exists(default_model_path):
+            resolved_model_path = default_model_path
+        elif os.path.exists(dev_model_path):
+            resolved_model_path = dev_model_path
+        elif os.path.exists(legacy_model_path):
+            resolved_model_path = legacy_model_path
+        else:
+            resolved_model_path = default_model_path
+
         return cls(
             device_id=device_id,
             serial_device=os.getenv("EDGE_SERIAL_DEVICE", "/dev/ttyUSB0"),
@@ -53,7 +74,7 @@ class Settings:
             fall_cooldown_seconds=float(os.getenv("EDGE_FALL_COOLDOWN", "3")),
             buffer_max_size=int(os.getenv("EDGE_BUFFER_MAX_SIZE", "50")),
             buffer_flush_interval_seconds=float(os.getenv("EDGE_BUFFER_FLUSH_INTERVAL_SEC", "2.0")),
-            model_path=os.getenv("EDGE_MODEL_PATH", "/var/lib/healthkicks/model.joblib"),
+            model_path=resolved_model_path,
             model_window_size=int(os.getenv("EDGE_MODEL_WINDOW_SIZE", "32")),
             log_level=os.getenv("EDGE_LOG_LEVEL", "INFO").upper(),
             studio_command_topic=os.getenv(
@@ -62,5 +83,17 @@ class Settings:
             continuously_send_telemetry=(
                 os.getenv("EDGE_CONTINUOUSLY_SEND_TELEMETRY", "false").lower()
                 in ("true", "1", "yes", "on")
+            ),
+            detection_topic=os.getenv(
+                "EDGE_DETECTION_TOPIC", f"{prefix}/events/detection"
+            ),
+            inference_interval_seconds=float(
+                os.getenv("EDGE_INFERENCE_INTERVAL_SEC", "0.25")
+            ),
+            confidence_threshold=float(
+                os.getenv("EDGE_CONFIDENCE_THRESHOLD", "0.65")
+            ),
+            detection_cooldown_seconds=float(
+                os.getenv("EDGE_DETECTION_COOLDOWN_SEC", "5.0")
             ),
         )

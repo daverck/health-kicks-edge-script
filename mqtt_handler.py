@@ -13,6 +13,7 @@ from paho.mqtt.enums import CallbackAPIVersion
 from pydantic import ValidationError
 
 from schemas import (
+    DetectionEvent,
     DeviceStatus,
     DeviceStatusPayload,
     FallEvent,
@@ -47,10 +48,14 @@ class MQTTHandler:
         studio_command_topic: str | None = None,
         studio_manager: StudioManager | None = None,
         on_studio_command: Callable[[StudioCaptureConfig], bool] | None = None,
+        detection_topic: str | None = None,
     ) -> None:
         self._device_id = device_id
         self._fall_topic = fall_topic
         self._telemetry_topic = telemetry_topic
+        self._detection_topic = (
+            detection_topic or f"healthkicks/v1/{device_id}/events/detection"
+        )
         self._command_topic = command_topic
         self._studio_command_topic = (
             studio_command_topic or f"healthkicks/v1/{device_id}/commands/studio/start"
@@ -96,6 +101,9 @@ class MQTTHandler:
 
     def publish_fall(self, event: FallEvent) -> None:
         self._publish(self._fall_topic, event.model_dump_json(), qos=1)
+
+    def publish_detection(self, event: DetectionEvent) -> None:
+        self._publish(self._detection_topic, event.model_dump_json(), qos=1)
 
     def set_studio_manager(self, studio_manager: StudioManager) -> None:
         self._studio_manager = studio_manager

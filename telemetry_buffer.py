@@ -51,7 +51,8 @@ class TelemetryBuffer:
             self.settings = type("SettingsHolder", (), {"continuously_send_telemetry": self._continuously_send_telemetry})()
         self._lock = threading.Lock()
         self._readings: list[Telemetry] = []
-        self._recent_readings: collections.deque[Telemetry] = collections.deque(maxlen=max_size)
+        recent_maxlen = max(max_size, 150)
+        self._recent_readings: collections.deque[Telemetry] = collections.deque(maxlen=recent_maxlen)
         self._window_start: datetime | None = None
 
     @property
