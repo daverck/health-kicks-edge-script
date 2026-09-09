@@ -59,6 +59,7 @@ def main() -> None:
         model_path=settings.model_path,
         cooldown_sec=settings.detection_cooldown_seconds,
         confidence_threshold=settings.confidence_threshold,
+        min_impact_threshold=settings.min_fall_impact_threshold,
     )
     mqtt_handler = MQTTHandler(
         host=settings.mqtt_host,

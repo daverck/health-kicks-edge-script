@@ -12,10 +12,34 @@ from typing import Any, Callable, Sequence
 import joblib
 import numpy as np
 
-from features import FEATURE_NAMES, extract_feature_vector
+from features import FEATURE_NAMES, compute_window_features, extract_feature_vector
 from schemas import DetectionEvent, DetectionMetadata
 
 LOGGER = logging.getLogger(__name__)
+
+MIN_FALL_IMPACT_THRESHOLD: float = 18.0
+
+
+def compute_window_biomechanics(
+    readings: Sequence[Any] | np.ndarray,
+) -> tuple[float, float]:
+    """Computes peak acceleration magnitude and kinetic energy across an IMU window.
+
+    Formula:
+        acc_mag = np.sqrt(ax**2 + ay**2 + az**2)
+        peak_acc = np.max(acc_mag)
+        acc_energy = np.mean(acc_mag**2)
+
+    Returns:
+        tuple[float, float]: (peak_acc, acc_energy)
+    """
+    if len(readings) == 0:
+        return 0.0, 0.0
+
+    features = compute_window_features(readings)
+    peak_acc = float(features["acc_mag_max"])
+    acc_energy = float(features["acc_energy"])
+    return peak_acc, acc_energy
 
 
 class ActivityClassifier:
@@ -23,7 +47,7 @@ class ActivityClassifier:
 
     Loads a trained joblib model, processes rolling IMU windows, extracts
     16 biomechanical features, and generates timestamped detection events
-    with anti-spam debouncing.
+    with anti-spam debouncing and a deterministic biomechanical guard.
     """
 
     def __init__(
@@ -32,11 +56,13 @@ class ActivityClassifier:
         cooldown_sec: float = 5.0,
         confidence_threshold: float = 0.65,
         min_samples: int = 10,
+        min_impact_threshold: float = MIN_FALL_IMPACT_THRESHOLD,
         time_fn: Callable[[], float] | None = None,
     ) -> None:
         self.cooldown_sec = max(0.0, float(cooldown_sec))
         self.confidence_threshold = max(0.0, min(1.0, float(confidence_threshold)))
         self.min_samples = max(1, int(min_samples))
+        self.min_impact_threshold = max(0.0, float(min_impact_threshold))
         self._time_fn = time_fn or time.monotonic
 
         self._lock = threading.Lock()
@@ -107,13 +133,18 @@ class ActivityClassifier:
     ) -> tuple[str, float] | None:
         """Evaluates an IMU window and returns (predicted_label, confidence).
 
+        Applies a deterministic biomechanical guard: if the model predicts
+        a fall event but peak_acc < min_impact_threshold, the prediction is
+        categorically ignored and state is considered 'idle'.
+
         Returns None if model is not loaded or readings window is too small.
         """
         if not self.is_loaded or len(readings) < self.min_samples:
             return None
 
         try:
-            X = extract_feature_vector(readings, self.feature_names)
+            features = compute_window_features(readings)
+            X = np.array([[features[k] for k in self.feature_names]], dtype=np.float64)
         except Exception as err:
             LOGGER.debug("feature_extraction_failed error=%s", err)
             return None
@@ -136,6 +167,24 @@ class ActivityClassifier:
                 else:
                     label = str(estimator.predict(X)[0])
                     confidence = 1.0
+
+            # Deterministic biomechanical guard:
+            # A real fall strictly requires a measurable impact.
+            # If peak_acc < min_impact_threshold, suppress any fall prediction to 'idle'.
+            peak_acc = float(features["acc_mag_max"])
+            is_fall = label.startswith("fall_") or label in (
+                "fall",
+                "fall_forward",
+                "fall_backward",
+                "fall_lateral",
+            )
+            if is_fall and peak_acc < self.min_impact_threshold:
+                LOGGER.debug(
+                    "Suppressed false fall detection (peak_acc=%.2f < threshold)",
+                    peak_acc,
+                )
+                return "idle", 1.0
+
             return label, confidence
         except Exception as exc:
             LOGGER.error("inference_prediction_error error=%s", exc)
@@ -144,7 +193,9 @@ class ActivityClassifier:
     def evaluate_window(
         self, readings: Sequence[Any] | np.ndarray, device_id: str
     ) -> DetectionEvent | None:
-        """Evaluates an IMU window, checks thresholds and cooldown, and returns a DetectionEvent if a fall occurred."""
+        """Evaluates an IMU window, checks thresholds, guard, and cooldown,
+        and returns a DetectionEvent if a confirmed fall occurred.
+        """
         prediction = self.predict(readings)
         if prediction is None:
             return None
@@ -158,6 +209,15 @@ class ActivityClassifier:
         )
 
         if not is_fall:
+            return None
+
+        # Double safety guard in case predict was overridden or mocked
+        peak_acc, _ = compute_window_biomechanics(readings)
+        if peak_acc < self.min_impact_threshold:
+            LOGGER.debug(
+                "Suppressed false fall detection (peak_acc=%.2f < threshold)",
+                peak_acc,
+            )
             return None
 
         if confidence < self.confidence_threshold:

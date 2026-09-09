@@ -9,7 +9,11 @@ import numpy as np
 import pytest
 from pydantic import ValidationError
 
-from activity_classifier import ActivityClassifier
+from activity_classifier import (
+    ActivityClassifier,
+    MIN_FALL_IMPACT_THRESHOLD,
+    compute_window_biomechanics,
+)
 from features import FEATURE_NAMES, compute_window_features, extract_feature_vector
 from schemas import DetectionEvent, DetectionMetadata, Header, ImuPayload, Telemetry
 
@@ -145,7 +149,8 @@ def test_activity_classifier_with_mock_estimator() -> None:
     classifier.model_name = "MockClassifier"
     classifier.window_size_sec = 2.0
 
-    readings = [{"ax": 0, "ay": 9.8, "az": 0, "gx": 0, "gy": 0, "gz": 0} for _ in range(10)]
+    # Readings simulating a fall with impact exceeding the 18.0 m/s² threshold
+    readings = [{"ax": 0, "ay": 22.0, "az": 0, "gx": 0, "gy": 0, "gz": 0} for _ in range(10)]
     prediction = classifier.predict(readings)
     assert prediction == ("fall_forward", 0.85)
 
@@ -178,7 +183,8 @@ def test_activity_classifier_debouncing_cooldown() -> None:
     classifier.classes = ["walk", "fall_forward"]
     classifier.model_name = "DebounceTestModel"
 
-    readings = [{"ax": 0, "ay": 9.8, "az": 0, "gx": 0, "gy": 0, "gz": 0} for _ in range(10)]
+    # Impact reading exceeding 18.0 m/s²
+    readings = [{"ax": 0, "ay": 22.0, "az": 0, "gx": 0, "gy": 0, "gz": 0} for _ in range(10)]
 
     # 1. First event triggers normally
     event1 = classifier.evaluate_window(readings, device_id="HK-1")
@@ -211,7 +217,8 @@ def test_activity_classifier_confidence_threshold_suppression() -> None:
     classifier.classes = ["walk", "fall_forward"]
     classifier.model_name = "ThresholdTest"
 
-    readings = [{"ax": 0, "ay": 9.8, "az": 0, "gx": 0, "gy": 0, "gz": 0} for _ in range(10)]
+    # Impact present (peak_acc > 18.0) but confidence is below threshold
+    readings = [{"ax": 0, "ay": 22.0, "az": 0, "gx": 0, "gy": 0, "gz": 0} for _ in range(10)]
     event = classifier.evaluate_window(readings, device_id="HK-1")
     assert event is None
 
@@ -315,5 +322,89 @@ def test_settings_resolves_repo_model_path(monkeypatch: pytest.MonkeyPatch) -> N
         assert settings.model_path == str(default_model)
     elif repo_model.exists():
         assert Path(settings.model_path).resolve() == repo_model.resolve()
+
+
+# -----------------------------------------------------------------------------
+# 4. Biomechanical Guard Unit Tests
+# -----------------------------------------------------------------------------
+def test_biomechanical_guard_suppresses_false_fall_on_stationary_window(
+    caplog: pytest.LogCaptureFixture,
+) -> None:
+    """Simulates a stationary window (ax=0, ay=9.8, az=0 without noise).
+
+    Verifies that NO fall alert is raised, even if the underlying statistical
+    model returns an erroneous fall prediction with high confidence (> 85%).
+    """
+    mock_estimator = MagicMock()
+    # Statistical model erroneously predicting fall_forward with 95% confidence
+    mock_estimator.predict_proba.return_value = np.array([[0.05, 0.95]])
+
+    classifier = ActivityClassifier(min_samples=5, min_impact_threshold=18.0)
+    classifier.estimator = mock_estimator
+    classifier.classes = ["walk", "fall_forward"]
+    classifier.model_name = "MockBiomechanicalGuardTest"
+
+    # Pure stationary window without impact (peak_acc = 9.80 < 18.0 m/s²)
+    stationary_readings = [
+        {"ax": 0.0, "ay": 9.8, "az": 0.0, "gx": 0.0, "gy": 0.0, "gz": 0.0}
+        for _ in range(32)
+    ]
+
+    with caplog.at_level("DEBUG"):
+        prediction = classifier.predict(stationary_readings)
+        event = classifier.evaluate_window(stationary_readings, device_id="HK-1")
+
+    # 1. Prediction must be overridden to 'idle'
+    assert prediction == ("idle", 1.0)
+    # 2. No detection event generated (neither MQTT nor haptic)
+    assert event is None
+    # 3. Debug log message emitted with peak_acc
+    assert "Suppressed false fall detection (peak_acc=9.80 < threshold)" in caplog.text
+
+
+def test_biomechanical_guard_allows_fall_when_impact_threshold_exceeded() -> None:
+    """Verifies that an authentic fall with impact (peak_acc >= 18.0 m/s²) is confirmed."""
+    mock_estimator = MagicMock()
+    mock_estimator.predict_proba.return_value = np.array([[0.10, 0.90]])
+
+    classifier = ActivityClassifier(min_samples=5, min_impact_threshold=18.0)
+    classifier.estimator = mock_estimator
+    classifier.classes = ["walk", "fall_lateral"]
+    classifier.model_name = "MockFallImpactTest"
+
+    # Pre-fall and post-fall readings with an impact spike exceeding 18.0 m/s²
+    readings = [
+        {"ax": 0.0, "ay": 9.8, "az": 0.0, "gx": 0.0, "gy": 0.0, "gz": 0.0}
+        for _ in range(20)
+    ]
+    readings[10] = {"ax": 12.0, "ay": 21.0, "az": 5.0, "gx": 1.2, "gy": 2.5, "gz": 0.5}
+
+    prediction = classifier.predict(readings)
+    assert prediction == ("fall_lateral", 0.90)
+
+    event = classifier.evaluate_window(readings, device_id="HK-1")
+    assert event is not None
+    assert event.event_type == "fall_lateral"
+    assert event.confidence == 0.90
+
+
+def test_compute_window_biomechanics_formula() -> None:
+    readings = [
+        {"ax": 3.0, "ay": 4.0, "az": 0.0, "gx": 0.0, "gy": 0.0, "gz": 0.0},  # mag = 5.0
+        {"ax": 0.0, "ay": 12.0, "az": 5.0, "gx": 0.0, "gy": 0.0, "gz": 0.0}, # mag = 13.0
+    ]
+    peak_acc, energy = compute_window_biomechanics(readings)
+    assert peak_acc == 13.0
+    # energy = (5^2 + 13^2) / 2 = (25 + 169) / 2 = 97.0
+    assert pytest.approx(energy, 1e-4) == 97.0
+
+
+def test_settings_min_fall_impact_threshold_from_env(monkeypatch: pytest.MonkeyPatch) -> None:
+    from config import Settings
+
+    monkeypatch.setenv("EDGE_MIN_FALL_IMPACT_THRESHOLD", "22.5")
+    settings = Settings.from_env()
+    assert settings.min_fall_impact_threshold == 22.5
+
 
 

@@ -33,6 +33,7 @@ class Settings:
     inference_interval_seconds: float = 0.25
     confidence_threshold: float = 0.65
     detection_cooldown_seconds: float = 5.0
+    min_fall_impact_threshold: float = 18.0
 
     @classmethod
     def from_env(cls) -> Settings:
@@ -101,5 +102,8 @@ class Settings:
             ),
             detection_cooldown_seconds=float(
                 os.getenv("EDGE_DETECTION_COOLDOWN_SEC", "5.0")
+            ),
+            min_fall_impact_threshold=float(
+                os.getenv("EDGE_MIN_FALL_IMPACT_THRESHOLD", "18.0")
             ),
         )

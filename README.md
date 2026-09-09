@@ -78,6 +78,7 @@ The `/etc/healthkicks_edge/healthkicks_edge.env` configuration file controls dev
 - `EDGE_INFERENCE_INTERVAL_SEC`: Evaluation frequency in seconds (default: `0.25`).
 - `EDGE_CONFIDENCE_THRESHOLD`: Minimum model probability for triggering an alert (default: `0.65`).
 - `EDGE_DETECTION_COOLDOWN_SEC`: Cooldown in seconds before a new alert can be emitted (default: `5.0`).
+- `EDGE_MIN_FALL_IMPACT_THRESHOLD`: Minimum peak acceleration impact in m/s² required to confirm a fall (default: `18.0`). Prevents false positive alerts at rest.
 
 Monitor live service logs:
 
