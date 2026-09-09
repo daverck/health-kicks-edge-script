@@ -39,15 +39,21 @@ class Settings:
         device_id = os.getenv("EDGE_DEVICE_ID", "HK-1")
         prefix = f"healthkicks/v1/{device_id}"
 
-        default_model_path = "/etc/healthkicks/models/fall_detector.joblib"
+        default_model_path = "/opt/healthkicks_edge/models/fall_detector.joblib"
+        repo_model_path = os.path.join(os.path.dirname(__file__), "models", "fall_detector.joblib")
+        ota_model_path = "/var/lib/healthkicks/models/fall_detector.joblib"
         dev_model_path = r"F:\Programmation\health-kicks\scripts\models\fall_detector.joblib"
         legacy_model_path = "/var/lib/healthkicks/model.joblib"
 
         env_model_path = os.getenv("EDGE_MODEL_PATH")
         if env_model_path:
             resolved_model_path = env_model_path
+        elif os.path.exists(ota_model_path):
+            resolved_model_path = ota_model_path
         elif os.path.exists(default_model_path):
             resolved_model_path = default_model_path
+        elif os.path.exists(repo_model_path):
+            resolved_model_path = repo_model_path
         elif os.path.exists(dev_model_path):
             resolved_model_path = dev_model_path
         elif os.path.exists(legacy_model_path):

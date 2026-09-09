@@ -2,4 +2,5 @@ main.py config.py schemas.py serial_handler.py ai_engine.py features.py inferenc
 debian/agent.env.example etc/healthkicks_edge/
 debian/aws-bridge.conf etc/mosquitto/conf.d/
 debian/healthkicks_edge.service usr/lib/systemd/system/
+models/fall_detector.joblib opt/healthkicks_edge/models/
 README.md usr/share/doc/healthkicks-edge/

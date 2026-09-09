@@ -9,8 +9,13 @@ adduser healthkicks_edge dialout >/dev/null 2>&1 || true
 
 # 2. Create necessary directories with appropriate ownership and permissions
 install -d -o healthkicks_edge -g healthkicks_edge -m 0750 /var/lib/healthkicks
+install -d -o healthkicks_edge -g healthkicks_edge -m 0750 /var/lib/healthkicks/models
 install -d -m 0750 /etc/healthkicks_edge
 install -d -o mosquitto -g mosquitto -m 0700 /etc/mosquitto/certs
+
+if [ -f /opt/healthkicks_edge/models/fall_detector.joblib ]; then
+    chmod 0644 /opt/healthkicks_edge/models/fall_detector.joblib
+fi
 
 # 3. Determine target device ID from environment variable (EDGE_DEVICE_ID or DEVICE_ID)
 #    prior to service installation, or fallback to existing configuration / default "HK-1"

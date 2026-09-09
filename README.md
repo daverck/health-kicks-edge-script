@@ -42,7 +42,7 @@ sudo apt install dpkg-dev debhelper
 
 The resulting package is written to the parent directory: `../healthkicks-edge_0.1.0_all.deb`.
 
-The package relies on Debian system Python packages (`python3-paho-mqtt`, `python3-serial`, `python3-pydantic`, `python3-sklearn`, `python3-joblib`), `adduser`, and `mosquitto`.
+The package relies on Debian system Python packages (`python3-paho-mqtt`, `python3-serial`, `python3-pydantic`, `python3-sklearn`, `python3-joblib`, `python3-numpy`), `adduser`, and `mosquitto`. The trained model artifact is bundled in `models/fall_detector.joblib` and automatically packaged to `/opt/healthkicks_edge/models/fall_detector.joblib`.
 
 ---
 
@@ -73,7 +73,7 @@ sudo systemctl restart healthkicks_edge.service
 ```
 
 The `/etc/healthkicks_edge/agent.env` configuration file controls device identity, MQTT connection parameters, topics, serial port settings, buffer intervals, model path, and detection thresholds:
-- `EDGE_MODEL_PATH`: Path to the pre-trained fall detection artifact (default: `/etc/healthkicks/models/fall_detector.joblib`). If missing, inference is disabled gracefully without failing the service.
+- `EDGE_MODEL_PATH`: Path to the pre-trained fall detection artifact (default: `/opt/healthkicks_edge/models/fall_detector.joblib`). If missing, inference is disabled gracefully without failing the service.
 - `EDGE_DETECTION_TOPIC`: MQTT topic for fall alerts (default: `healthkicks/v1/{device_id}/events/detection`).
 - `EDGE_INFERENCE_INTERVAL_SEC`: Evaluation frequency in seconds (default: `0.25`).
 - `EDGE_CONFIDENCE_THRESHOLD`: Minimum model probability for triggering an alert (default: `0.65`).

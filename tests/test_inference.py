@@ -113,11 +113,13 @@ def test_fall_detector_missing_model_graceful_degradation(
 
 
 def test_fall_detector_load_real_trained_model_if_present() -> None:
+    repo_path = Path(__file__).resolve().parent.parent / "models" / "fall_detector.joblib"
     dev_path = Path(r"F:\Programmation\health-kicks\scripts\models\fall_detector.joblib")
-    if not dev_path.exists():
-        pytest.skip("Pre-trained model file not present at development location")
+    model_path = repo_path if repo_path.exists() else dev_path
+    if not model_path.exists():
+        pytest.skip("Pre-trained model file not present")
 
-    detector = FallDetector(model_path=dev_path)
+    detector = FallDetector(model_path=model_path)
     assert detector.is_loaded is True
     assert detector.model_name == "HistGradientBoosting"
     assert len(detector.feature_names) == 16
@@ -299,4 +301,21 @@ def test_settings_detection_from_env(monkeypatch: pytest.MonkeyPatch) -> None:
     assert settings.inference_interval_seconds == 0.5
     assert settings.confidence_threshold == 0.75
     assert settings.detection_cooldown_seconds == 10.0
+
+
+def test_settings_resolves_repo_model_path(monkeypatch: pytest.MonkeyPatch) -> None:
+    from config import Settings
+
+    monkeypatch.delenv("EDGE_MODEL_PATH", raising=False)
+    settings = Settings.from_env()
+
+    # The bundled model in repo should be resolved if /opt default doesn't exist
+    repo_model = Path(__file__).resolve().parent.parent / "models" / "fall_detector.joblib"
+    default_model = Path("/opt/healthkicks_edge/models/fall_detector.joblib")
+
+    if default_model.exists():
+        assert settings.model_path == str(default_model)
+    elif repo_model.exists():
+        assert Path(settings.model_path).resolve() == repo_model.resolve()
+
 
