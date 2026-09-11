@@ -10,10 +10,10 @@ Group=dialout
 SupplementaryGroups=dialout
 WorkingDirectory=/opt/healthkicks_edge
 EnvironmentFile=-/etc/healthkicks_edge/healthkicks_edge.env
-ExecStart=/usr/bin/python3 -m healthkicks_edge
+ExecStart=/usr/bin/healthkicks-edge
 Restart=always
 RestartSec=5
-Environment=PYTHONUNBUFFERED=1 PYTHONPATH=/opt/healthkicks_edge
+Environment=PYTHONUNBUFFERED=1
 StateDirectory=healthkicks
 
 [Install]

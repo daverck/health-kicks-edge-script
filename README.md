@@ -36,7 +36,7 @@ Local edge agent for Raspberry Pi: Arduino IMU acquisition, real-time edge AI fa
 Build the package on Debian or Raspberry Pi OS with standard packaging utilities:
 
 ```sh
-sudo apt install dpkg-dev debhelper
+sudo apt install dpkg-dev debhelper dh-python pybuild-plugin-pyproject python3-setuptools
 ./build-deb.sh
 ```
 

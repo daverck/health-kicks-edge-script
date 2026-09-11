@@ -1,11 +1,11 @@
 #!/bin/sh
-# Build the healthkicks-edge Debian package with debhelper (dh).
-# Usage: ./build-deb.sh   (on Debian / Raspberry Pi OS, needs dpkg-dev + debhelper)
+# Build the healthkicks-edge Debian package with debhelper and pybuild.
+# Usage: ./build-deb.sh   (on Debian / Raspberry Pi OS, needs dpkg-dev debhelper dh-python pybuild-plugin-pyproject python3-setuptools)
 #
 # The packaging sources live in debian/ (debhelper convention):
-#   debian/control     package metadata + Build-Depends
-#   debian/rules       minimal "%: dh $@" makefile
-#   debian/install     file -> destination mapping (dh_install)
+#   debian/control     package metadata + Build-Depends (dh-python, setuptools)
+#   debian/rules       "dh $@ --with python3 --buildsystem=pybuild" makefile
+#   debian/install     system files / config -> destination mapping (dh_install)
 #   debian/postinst    user/dir setup, mosquitto certs, service restarts
 #   debian/prerm       service stop/disable
 set -eu
