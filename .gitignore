@@ -19,6 +19,7 @@ healthkicks_edge.env
 # OS/editor files
 .DS_Store
 .vscode/
+.idea/
 
 # debhelper build artifacts
 debian/.debhelper/

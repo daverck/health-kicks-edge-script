@@ -8,14 +8,18 @@ import sys
 import threading
 import time
 from datetime import datetime, timezone
+from pathlib import Path
 from uuid import uuid4
 from typing import Any
 
-from config import Settings
-from schemas import Header, ImuPayload, StudioCaptureConfig, Telemetry, TelemetryBatch
-from serial_handler import SerialHandler
-from studio_manager import StudioManager
-from telemetry_buffer import TelemetryBuffer
+# Ensure src is in sys.path when script is invoked directly
+sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "src"))
+
+from healthkicks_edge.config import Settings
+from healthkicks_edge.schemas import Header, ImuPayload, StudioCaptureConfig, Telemetry, TelemetryBatch
+from healthkicks_edge.serial_handler import SerialHandler
+from healthkicks_edge.studio_manager import StudioManager
+from healthkicks_edge.telemetry_buffer import TelemetryBuffer
 
 
 class MockSerialHandler:

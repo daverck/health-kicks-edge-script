@@ -5,8 +5,8 @@ from datetime import datetime, timezone
 import pytest
 from pydantic import ValidationError
 
-from schemas import BatchMetadata, Header, ImuPayload, Telemetry, TelemetryBatch
-from telemetry_buffer import TelemetryBuffer
+from healthkicks_edge.schemas import BatchMetadata, Header, ImuPayload, Telemetry, TelemetryBatch
+from healthkicks_edge.telemetry_buffer import TelemetryBuffer
 
 
 def _create_sample_telemetry(device_id: str = "HK-1") -> Telemetry:

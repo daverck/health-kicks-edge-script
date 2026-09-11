@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import os
 from dataclasses import dataclass
+from pathlib import Path
 
 
 @dataclass(frozen=True)
@@ -38,7 +39,9 @@ class Settings:
         prefix = f"healthkicks/v1/{device_id}"
 
         default_model_path = "/opt/healthkicks_edge/models/activity_classifier.joblib"
-        repo_model_path = os.path.join(os.path.dirname(__file__), "models", "activity_classifier.joblib")
+        repo_model_path = str(
+            Path(__file__).resolve().parents[2] / "models" / "activity_classifier.joblib"
+        )
         ota_model_path = "/var/lib/healthkicks/models/activity_classifier.joblib"
         dev_model_path = r"F:\Programmation\health-kicks\scripts\models\activity_classifier.joblib"
         legacy_model_path = "/var/lib/healthkicks/model.joblib"
@@ -101,3 +104,4 @@ class Settings:
                 os.getenv("EDGE_MIN_FALL_IMPACT_THRESHOLD", "18.0")
             ),
         )
+

@@ -141,3 +141,4 @@ def extract_feature_vector(
     features_dict = compute_window_features(readings)
     row = [features_dict[k] for k in names]
     return np.array([row], dtype=np.float64)
+

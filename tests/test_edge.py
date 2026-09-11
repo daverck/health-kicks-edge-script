@@ -8,10 +8,10 @@ from datetime import datetime, timezone
 import pytest
 from pydantic import ValidationError
 
-import mqtt_handler
-from mqtt_handler import MQTTHandler
-from schemas import HapticCommand, Header
-from serial_handler import SerialHandler
+from healthkicks_edge import mqtt_handler
+from healthkicks_edge.mqtt_handler import MQTTHandler
+from healthkicks_edge.schemas import HapticCommand, Header
+from healthkicks_edge.serial_handler import SerialHandler
 
 
 TEST_DEVICE_ID = "HK-1"
@@ -131,7 +131,7 @@ def test_mqtt_handler_on_message_rejects_payload_with_device_id(
 
 
 def test_settings_dynamic_topics_default_and_override(monkeypatch: pytest.MonkeyPatch) -> None:
-    from config import Settings
+    from healthkicks_edge.config import Settings
 
     # Vérification des valeurs par défaut dynamiques avec fallback HK-1
     monkeypatch.delenv("EDGE_DEVICE_ID", raising=False)
@@ -210,7 +210,7 @@ def test_data_prefixed_serial_telemetry_is_accepted() -> None:
 
 def _telemetry(**payload: float):
     from datetime import datetime, timezone as tz
-    from schemas import Header, ImuPayload, Telemetry
+    from healthkicks_edge.schemas import Header, ImuPayload, Telemetry
 
     base = {"ax": 0.0, "ay": 0.0, "az": 30.0, "gx": 0.0, "gy": 0.0, "gz": 0.0}
     base.update(payload)
@@ -221,7 +221,7 @@ def _telemetry(**payload: float):
 
 
 def test_buffer_flushes_on_max_size() -> None:
-    from telemetry_buffer import TelemetryBuffer
+    from healthkicks_edge.telemetry_buffer import TelemetryBuffer
 
     batches = []
     buffer = TelemetryBuffer(
@@ -240,7 +240,7 @@ def test_buffer_flushes_on_max_size() -> None:
 
 
 def test_buffer_flushes_on_time_interval() -> None:
-    from telemetry_buffer import TelemetryBuffer
+    from healthkicks_edge.telemetry_buffer import TelemetryBuffer
 
     batches = []
     buffer = TelemetryBuffer(

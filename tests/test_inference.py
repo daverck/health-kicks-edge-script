@@ -9,13 +9,13 @@ import numpy as np
 import pytest
 from pydantic import ValidationError
 
-from activity_classifier import (
+from healthkicks_edge.activity_classifier import (
     ActivityClassifier,
     MIN_FALL_IMPACT_THRESHOLD,
     compute_window_biomechanics,
 )
-from features import FEATURE_NAMES, compute_window_features, extract_feature_vector
-from schemas import DetectionEvent, DetectionMetadata, Header, ImuPayload, Telemetry
+from healthkicks_edge.features import FEATURE_NAMES, compute_window_features, extract_feature_vector
+from healthkicks_edge.schemas import DetectionEvent, DetectionMetadata, Header, ImuPayload, Telemetry
 
 
 def _create_sample_telemetry(
@@ -247,7 +247,7 @@ def test_detection_event_schema_strictness() -> None:
 
 
 def test_mqtt_publish_detection() -> None:
-    from mqtt_handler import MQTTHandler
+    from healthkicks_edge.mqtt_handler import MQTTHandler
 
     published_messages: list[tuple[str, str, int]] = []
 
@@ -291,7 +291,7 @@ def test_mqtt_publish_detection() -> None:
 
 
 def test_settings_detection_from_env(monkeypatch: pytest.MonkeyPatch) -> None:
-    from config import Settings
+    from healthkicks_edge.config import Settings
 
     monkeypatch.setenv("EDGE_DEVICE_ID", "HK-99")
     monkeypatch.setenv("EDGE_DETECTION_TOPIC", "custom/detection/topic")
@@ -308,7 +308,7 @@ def test_settings_detection_from_env(monkeypatch: pytest.MonkeyPatch) -> None:
 
 
 def test_settings_resolves_repo_model_path(monkeypatch: pytest.MonkeyPatch) -> None:
-    from config import Settings
+    from healthkicks_edge.config import Settings
 
     monkeypatch.delenv("EDGE_MODEL_PATH", raising=False)
     settings = Settings.from_env()
@@ -399,7 +399,7 @@ def test_compute_window_biomechanics_formula() -> None:
 
 
 def test_settings_min_fall_impact_threshold_from_env(monkeypatch: pytest.MonkeyPatch) -> None:
-    from config import Settings
+    from healthkicks_edge.config import Settings
 
     monkeypatch.setenv("EDGE_MIN_FALL_IMPACT_THRESHOLD", "22.5")
     settings = Settings.from_env()

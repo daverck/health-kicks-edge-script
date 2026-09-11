@@ -12,7 +12,7 @@ import paho.mqtt.client as mqtt
 from paho.mqtt.enums import CallbackAPIVersion
 from pydantic import ValidationError
 
-from schemas import (
+from healthkicks_edge.schemas import (
     DetectionEvent,
     DeviceStatus,
     DeviceStatusPayload,
@@ -23,7 +23,7 @@ from schemas import (
 )
 
 if TYPE_CHECKING:
-    from studio_manager import StudioManager
+    from healthkicks_edge.studio_manager import StudioManager
 
 LOGGER = logging.getLogger(__name__)
 
@@ -218,3 +218,4 @@ class MQTTHandler:
                 topic,
                 result.rc,
             )
+

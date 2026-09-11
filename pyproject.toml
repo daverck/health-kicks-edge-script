@@ -12,8 +12,11 @@ dependencies = [
     "scikit-learn>=1.3,<2.0",
 ]
 
+[project.scripts]
+healthkicks-edge = "healthkicks_edge.main:main"
+
 [tool.uv]
-package = false
+package = true
 
 [dependency-groups]
 dev = [
@@ -21,7 +24,8 @@ dev = [
 ]
 
 [tool.pytest.ini_options]
-pythonpath = ["."]
+testpaths = ["tests"]
+pythonpath = ["src"]
 filterwarnings = [
     "ignore::DeprecationWarning:joblib.*",
 ]

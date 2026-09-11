@@ -12,8 +12,8 @@ from typing import Any, Callable, Sequence
 import joblib
 import numpy as np
 
-from features import FEATURE_NAMES, compute_window_features, extract_feature_vector
-from schemas import DetectionEvent, DetectionMetadata
+from healthkicks_edge.features import FEATURE_NAMES, compute_window_features, extract_feature_vector
+from healthkicks_edge.schemas import DetectionEvent, DetectionMetadata
 
 LOGGER = logging.getLogger(__name__)
 
@@ -262,3 +262,4 @@ class ActivityClassifier:
             confidence,
         )
         return event
+

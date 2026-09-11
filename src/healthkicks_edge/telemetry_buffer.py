@@ -6,7 +6,7 @@ import threading
 from datetime import datetime, timezone
 from typing import Any, Callable, Literal
 
-from schemas import BatchMetadata, Header, Telemetry, TelemetryBatch
+from healthkicks_edge.schemas import BatchMetadata, Header, Telemetry, TelemetryBatch
 
 LOGGER = logging.getLogger(__name__)
 
@@ -156,3 +156,4 @@ class TelemetryBuffer:
             trigger_names.get(trigger, trigger),
         )
         return len(readings)
+

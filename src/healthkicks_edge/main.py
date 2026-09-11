@@ -6,13 +6,13 @@ import threading
 
 from datetime import datetime, timezone
 
-from activity_classifier import ActivityClassifier
-from config import Settings
-from mqtt_handler import MQTTHandler
-from schemas import Header, ImuPayload, Telemetry
-from serial_handler import SerialHandler
-from studio_manager import StudioManager
-from telemetry_buffer import TelemetryBuffer
+from healthkicks_edge.activity_classifier import ActivityClassifier
+from healthkicks_edge.config import Settings
+from healthkicks_edge.mqtt_handler import MQTTHandler
+from healthkicks_edge.schemas import Header, ImuPayload, Telemetry
+from healthkicks_edge.serial_handler import SerialHandler
+from healthkicks_edge.studio_manager import StudioManager
+from healthkicks_edge.telemetry_buffer import TelemetryBuffer
 
 
 def main() -> None:
@@ -137,3 +137,4 @@ def main() -> None:
 
 if __name__ == "__main__":
     main()
+

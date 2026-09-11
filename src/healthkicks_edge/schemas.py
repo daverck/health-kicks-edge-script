@@ -93,4 +93,3 @@ class DetectionEvent(StrictModel):
     timestamp: int = Field(ge=0)
     metadata: DetectionMetadata
 
-

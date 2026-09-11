@@ -132,3 +132,4 @@ class SerialHandler:
                 LOGGER.debug("serial_close_failed", exc_info=True)
             finally:
                 self._serial = None
+

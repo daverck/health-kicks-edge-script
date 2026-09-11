@@ -7,9 +7,9 @@ from unittest.mock import MagicMock, call
 import pytest
 from pydantic import ValidationError
 
-from schemas import Header, ImuPayload, StudioCaptureConfig, Telemetry, TelemetryBatch
-from studio_manager import StudioManager
-from telemetry_buffer import TelemetryBuffer
+from healthkicks_edge.schemas import Header, ImuPayload, StudioCaptureConfig, Telemetry, TelemetryBatch
+from healthkicks_edge.studio_manager import StudioManager
+from healthkicks_edge.telemetry_buffer import TelemetryBuffer
 
 
 def _sample_telemetry(device_id: str = "HK-1") -> Telemetry:

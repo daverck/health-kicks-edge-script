@@ -4,9 +4,9 @@ import json
 from unittest.mock import MagicMock
 import pytest
 
-import mqtt_handler
-from mqtt_handler import MQTTHandler
-from schemas import StudioCaptureConfig
+from healthkicks_edge import mqtt_handler
+from healthkicks_edge.mqtt_handler import MQTTHandler
+from healthkicks_edge.schemas import StudioCaptureConfig
 
 TEST_DEVICE_ID = "HK-1"
 

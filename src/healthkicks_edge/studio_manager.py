@@ -5,7 +5,7 @@ import threading
 import time
 from typing import Any, Callable
 
-from schemas import StudioCaptureConfig
+from healthkicks_edge.schemas import StudioCaptureConfig
 
 LOGGER = logging.getLogger(__name__)
 
@@ -201,3 +201,4 @@ class StudioManager:
                 lbl,
                 flushed_count,
             )
+
