@@ -253,3 +253,14 @@ def test_buffer_flushes_on_time_interval() -> None:
     assert buffer.flush("time_interval") == 1
     assert batches[0].metadata.flush_trigger == "time_interval"
     assert buffer.due() is False
+
+
+def test_main_module_imports() -> None:
+    """Ensure main module can be imported without NameError or missing dependencies."""
+    import importlib
+    import healthkicks_edge.main
+
+    module = importlib.reload(healthkicks_edge.main)
+    assert hasattr(module, "main")
+    assert callable(module.main)
+

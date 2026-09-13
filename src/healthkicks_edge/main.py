@@ -8,6 +8,10 @@ from datetime import datetime, timezone
 
 from healthkicks_edge.activity_classifier import ActivityClassifier
 from healthkicks_edge.config import Settings
+from healthkicks_edge.schemas import Header, ImuPayload, Telemetry
+from healthkicks_edge.serial_handler import SerialHandler
+from healthkicks_edge.studio_manager import StudioManager
+from healthkicks_edge.telemetry_buffer import TelemetryBuffer
 from healthkicks_edge.transport.base import Transport
 from healthkicks_edge.transport.factory import create_transport
 
