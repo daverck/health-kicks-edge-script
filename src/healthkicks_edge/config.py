@@ -43,10 +43,13 @@ class Settings:
             Path(__file__).resolve().parents[2] / "models" / "activity_classifier.joblib"
         )
         ota_model_path = "/var/lib/healthkicks/models/activity_classifier.joblib"
-        dev_model_path = r"F:\Programmation\health-kicks\scripts\models\activity_classifier.joblib"
+        ecosystem_root = Path(__file__).resolve().parents[3]
+        dev_model_path = str(
+            ecosystem_root / "health-kicks" / "scripts" / "models" / "activity_classifier.joblib"
+        )
         legacy_model_path = "/var/lib/healthkicks/model.joblib"
 
-        env_model_path = os.getenv("EDGE_MODEL_PATH")
+        env_model_path = os.getenv("HEALTHKICKS_MODEL_PATH") or os.getenv("EDGE_MODEL_PATH")
         if env_model_path:
             resolved_model_path = env_model_path
         elif os.path.exists(ota_model_path):
