@@ -226,3 +226,49 @@ def test_ble_transport_start_catches_adapter_error_gracefully(monkeypatch):
     # Should not raise an unhandled exception
     transport.start()
 
+
+def test_ble_client_match_device():
+    import sys
+    from pathlib import Path
+    scripts_dir = str(Path(__file__).resolve().parents[1] / "scripts")
+    if scripts_dir not in sys.path:
+        sys.path.insert(0, scripts_dir)
+    import test_ble_client
+
+    class DummyDevice:
+        def __init__(self, name=None, address="AA:BB:CC:DD:EE:FF"):
+            self.name = name
+            self.address = address
+
+    class DummyAdv:
+        def __init__(self, local_name=None, service_uuids=None, rssi=-60):
+            self.local_name = local_name
+            self.service_uuids = service_uuids or []
+            self.rssi = rssi
+
+    from healthkicks_edge.transport.ble.constants import FOOTWEAR_SERVICE_UUID
+
+    # 1. Match by exact Service UUID in adv_data
+    dev = DummyDevice(name=None)
+    adv = DummyAdv(service_uuids=[FOOTWEAR_SERVICE_UUID.lower()])
+    assert test_ble_client.match_device(dev, adv) is True
+
+    # 2. Match by case-insensitive Service UUID
+    adv_upper = DummyAdv(service_uuids=[FOOTWEAR_SERVICE_UUID.upper()])
+    assert test_ble_client.match_device(dev, adv_upper) is True
+
+    # 3. Match by adv local_name
+    adv_name = DummyAdv(local_name="HealthKicks Footwear")
+    assert test_ble_client.match_device(dev, adv_name) is True
+
+    # 4. Match by device.name fallback
+    dev_name = DummyDevice(name="HealthKicks-001")
+    adv_empty = DummyAdv()
+    assert test_ble_client.match_device(dev_name, adv_empty) is True
+
+    # 5. Non-matching device
+    dev_other = DummyDevice(name="OtherDevice")
+    adv_other = DummyAdv(local_name="OtherDevice", service_uuids=["180d"])
+    assert test_ble_client.match_device(dev_other, adv_other) is False
+
+

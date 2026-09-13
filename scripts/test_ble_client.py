@@ -93,23 +93,100 @@ def simulate_offline_burst() -> None:
         sys.exit(1)
 
 
-async def run_ble_live_client(device_address: str | None = None, duration_sec: float = 3.0) -> None:
+def match_device(device: Any, adv_data: Any) -> bool:
+    """Match device by Service UUID or Advertised Local Name."""
+    # 1. Vérification UUID de service (insensible à la casse)
+    service_match = any(
+        FOOTWEAR_SERVICE_UUID.lower() == str(u).lower()
+        for u in (getattr(adv_data, "service_uuids", None) or [])
+    )
+    if service_match:
+        return True
+
+    # 2. Vérification sur le nom (local_name de l'adv ou device.name)
+    local_name = getattr(adv_data, "local_name", None) or getattr(device, "name", None) or ""
+    if "HealthKicks" in local_name:
+        return True
+
+    return False
+
+
+async def run_ble_live_client(
+    device_address: str | None = None,
+    duration_sec: float = 3.0,
+    timeout_sec: float = 12.0,
+) -> None:
     """Connect to the live HealthKicks GATT server and exercise all characteristics."""
     if not HAS_BLEAK:
         LOGGER.error("bleak is required for live testing. Install via: pip install bleak")
         sys.exit(1)
 
     target_device = None
+    discovered_devices: dict[str, tuple[Any, Any]] = {}
+
     if not device_address:
-        LOGGER.info("Scanning for HealthKicks Footwear Service (%s)...", FOOTWEAR_SERVICE_UUID)
-        devices = await BleakScanner.discover(timeout=5.0)
-        for d in devices:
-            if d.name and "HealthKicks" in d.name:
-                target_device = d
-                break
+        LOGGER.info(
+            "Scanning for HealthKicks Footwear device (Service: %s, timeout: %.1fs)...",
+            FOOTWEAR_SERVICE_UUID,
+            timeout_sec,
+        )
+
+        def detection_callback(device: Any, adv_data: Any) -> None:
+            discovered_devices[device.address] = (device, adv_data)
+
+        try:
+            scanner = BleakScanner(detection_callback=detection_callback)
+            await scanner.start()
+            try:
+                start_time = asyncio.get_running_loop().time()
+                while (asyncio.get_running_loop().time() - start_time) < timeout_sec:
+                    for dev, adv in list(discovered_devices.values()):
+                        if match_device(dev, adv):
+                            target_device = dev
+                            LOGGER.info(
+                                "Found matching HealthKicks device: %s (Name: '%s', RSSI: %s dBm)",
+                                dev.address,
+                                getattr(adv, "local_name", None) or getattr(dev, "name", None) or "<unknown>",
+                                getattr(adv, "rssi", "N/A"),
+                            )
+                            break
+                    if target_device:
+                        break
+                    await asyncio.sleep(0.25)
+            finally:
+                await scanner.stop()
+        except Exception as scan_err:
+            LOGGER.warning("Callback scan failed (%s), falling back to BleakScanner.discover()...", scan_err)
+            results = await BleakScanner.discover(timeout=timeout_sec, return_adv=True)
+            if isinstance(results, dict):
+                discovered_devices = results
+            elif isinstance(results, list):
+                discovered_devices = {d.address: (d, getattr(d, "details", None)) for d in results}
+            for dev, adv in discovered_devices.values():
+                if adv and match_device(dev, adv):
+                    target_device = dev
+                    break
+
         if not target_device:
-            LOGGER.error("No HealthKicks device found during scan.")
+            LOGGER.error("No HealthKicks device found during scan (timeout: %.1fs).", timeout_sec)
+            if discovered_devices:
+                LOGGER.info("Nearby BLE devices detected (%d):", len(discovered_devices))
+                for addr, item in discovered_devices.items():
+                    if isinstance(item, tuple) and len(item) == 2:
+                        dev, adv = item
+                        name = getattr(adv, "local_name", None) or getattr(dev, "name", None) or "<Unknown>"
+                        rssi = getattr(adv, "rssi", None) or getattr(dev, "rssi", "N/A")
+                        uuids = getattr(adv, "service_uuids", None) or []
+                    else:
+                        dev = item
+                        name = getattr(dev, "name", "<Unknown>")
+                        rssi = getattr(dev, "rssi", "N/A")
+                        uuids = []
+                    LOGGER.info("  - %s | Name: %s | RSSI: %s dBm | Services: %s", addr, name, rssi, uuids)
+            else:
+                LOGGER.warning("No BLE devices detected nearby. Check that Bluetooth is enabled on this host.")
             return
+
         device_address = target_device.address
 
     LOGGER.info("Connecting to GATT server at %s...", device_address)
@@ -134,7 +211,7 @@ async def run_ble_live_client(device_address: str | None = None, duration_sec: f
             LOGGER.info("Received END_OF_BURST packet (total packets: %d)", len(burst_packets))
             burst_finished_event.set()
 
-    async with BleakClient(device_address) as client:
+    async with BleakClient(target_device or device_address) as client:
         LOGGER.info("Connected to %s (MTU: %d)", device_address, client.mtu_size)
 
         # 1. Subscribe to notifications
@@ -181,15 +258,39 @@ async def run_ble_live_client(device_address: str | None = None, duration_sec: f
 
 def main() -> None:
     parser = argparse.ArgumentParser(description="HealthKicks BLE GATT Client Test Tool")
-    parser.add_argument("--address", help="Bluetooth device MAC / UUID address")
-    parser.add_argument("--duration", type=float, default=3.0, help="Studio capture duration in seconds")
-    parser.add_argument("--simulate", action="store_true", help="Run offline burst packetization simulation")
+    parser.add_argument(
+        "-a", "--address",
+        help="Bluetooth device MAC / UUID address (bypasses active scan if specified)",
+    )
+    parser.add_argument(
+        "-t", "--timeout",
+        type=float,
+        default=12.0,
+        help="BLE scan timeout in seconds when searching for device (default: 12.0)",
+    )
+    parser.add_argument(
+        "-d", "--duration",
+        type=float,
+        default=3.0,
+        help="Studio capture duration in seconds (default: 3.0)",
+    )
+    parser.add_argument(
+        "--simulate",
+        action="store_true",
+        help="Run offline burst packetization simulation",
+    )
     args = parser.parse_args()
 
     if args.simulate or not HAS_BLEAK:
         simulate_offline_burst()
     else:
-        asyncio.run(run_ble_live_client(device_address=args.address, duration_sec=args.duration))
+        asyncio.run(
+            run_ble_live_client(
+                device_address=args.address,
+                duration_sec=args.duration,
+                timeout_sec=args.timeout,
+            )
+        )
 
 
 if __name__ == "__main__":
