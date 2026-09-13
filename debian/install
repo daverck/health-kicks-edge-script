@@ -2,4 +2,5 @@ debian/healthkicks_edge.env.example etc/healthkicks_edge/
 debian/aws-bridge.conf etc/mosquitto/conf.d/
 debian/healthkicks_edge.service usr/lib/systemd/system/
 models/activity_classifier.joblib opt/healthkicks_edge/models/
+vendor/bluezero usr/lib/python3/dist-packages/
 README.md usr/share/doc/healthkicks-edge/
