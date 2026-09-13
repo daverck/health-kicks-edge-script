@@ -32,6 +32,9 @@ class Settings:
     confidence_threshold: float = 0.65
     detection_cooldown_seconds: float = 5.0
     min_fall_impact_threshold: float = 18.0
+    transport: str = "mqtt"
+    ble_adapter: str = "hci0"
+    ble_device_name: str = ""
 
     @classmethod
     def from_env(cls) -> Settings:
@@ -106,5 +109,8 @@ class Settings:
             min_fall_impact_threshold=float(
                 os.getenv("EDGE_MIN_FALL_IMPACT_THRESHOLD", "18.0")
             ),
+            transport=os.getenv("EDGE_TRANSPORT", "mqtt").lower().strip(),
+            ble_adapter=os.getenv("EDGE_BLE_ADAPTER", "hci0"),
+            ble_device_name=os.getenv("EDGE_BLE_NAME", f"HealthKicks-{device_id}"),
         )
 

@@ -37,6 +37,22 @@ class StudioManager:
         self._active_label: str | None = None
         self._session_deadline: float | None = None
         self._thread: threading.Thread | None = None
+        self._status_listeners: list[Callable[[str], None]] = []
+
+    def add_status_listener(self, listener: Callable[[str], None]) -> None:
+        """Register a callback invoked whenever the studio status transitions."""
+        with self._lock:
+            if listener not in self._status_listeners:
+                self._status_listeners.append(listener)
+
+    def _notify_status(self, message: str) -> None:
+        """Dispatches status updates to all registered listeners."""
+        listeners = list(self._status_listeners)
+        for cb in listeners:
+            try:
+                cb(message)
+            except Exception as err:
+                LOGGER.debug("failed_to_invoke_status_listener err=%s", err)
 
     @property
     def is_running(self) -> bool:
@@ -149,6 +165,7 @@ class StudioManager:
             for pulse_idx in range(1, config.pulse_count + 1):
                 if self._cancel_event.is_set() or (self._stop_event and self._stop_event.is_set()):
                     LOGGER.info("studio_aborted_during_countdown")
+                    self._notify_status("CANCELLED")
                     return
 
                 self._serial_handler.enqueue_haptic(
@@ -156,13 +173,16 @@ class StudioManager:
                     config.pulse_duration_ms,
                 )
                 LOGGER.debug("studio_pulse_enqueued pulse=%d/%d", pulse_idx, config.pulse_count)
+                self._notify_status(f"COUNTDOWN {pulse_idx}/{config.pulse_count}")
 
                 if not self._sleep(pulse_interval):
                     LOGGER.info("studio_aborted_during_pulse_delay")
+                    self._notify_status("CANCELLED")
                     return
 
             if self._cancel_event.is_set() or (self._stop_event and self._stop_event.is_set()):
                 LOGGER.info("studio_aborted_before_recording")
+                self._notify_status("CANCELLED")
                 return
 
             # Flush any nominal telemetry accumulated prior to recording start
@@ -182,12 +202,14 @@ class StudioManager:
                 config.duration_sec,
                 deadline,
             )
+            self._notify_status(f"RECORDING {config.duration_sec}")
 
             # c. Wait for capture window to complete
             self._sleep(config.duration_sec)
 
         finally:
             # d. Finalize session
+            is_cancelled = self._cancel_event.is_set()
             with self._lock:
                 self._active_session_id = None
                 self._active_label = None
@@ -201,4 +223,8 @@ class StudioManager:
                 lbl,
                 flushed_count,
             )
+            if is_cancelled:
+                self._notify_status("CANCELLED")
+            else:
+                self._notify_status(f"FINISHED {flushed_count} {sid}")
 

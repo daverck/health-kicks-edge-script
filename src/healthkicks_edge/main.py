@@ -8,11 +8,8 @@ from datetime import datetime, timezone
 
 from healthkicks_edge.activity_classifier import ActivityClassifier
 from healthkicks_edge.config import Settings
-from healthkicks_edge.mqtt_handler import MQTTHandler
-from healthkicks_edge.schemas import Header, ImuPayload, Telemetry
-from healthkicks_edge.serial_handler import SerialHandler
-from healthkicks_edge.studio_manager import StudioManager
-from healthkicks_edge.telemetry_buffer import TelemetryBuffer
+from healthkicks_edge.transport.base import Transport
+from healthkicks_edge.transport.factory import create_transport
 
 
 def main() -> None:
@@ -23,7 +20,7 @@ def main() -> None:
     )
     stop_event = threading.Event()
 
-    mqtt_handler: MQTTHandler
+    transport: Transport
     serial_handler: SerialHandler
     telemetry_buffer: TelemetryBuffer
     studio_manager: StudioManager
@@ -48,7 +45,7 @@ def main() -> None:
         device_id=settings.device_id,
         max_size=settings.buffer_max_size,
         flush_interval=settings.buffer_flush_interval_seconds,
-        publish=lambda batch: mqtt_handler.publish_batch(batch),
+        publish=lambda batch: transport.publish_batch(batch),
         continuously_send_telemetry=settings.continuously_send_telemetry,
         settings=settings,
     )
@@ -58,24 +55,12 @@ def main() -> None:
         confidence_threshold=settings.confidence_threshold,
         min_impact_threshold=settings.min_fall_impact_threshold,
     )
-    mqtt_handler = MQTTHandler(
-        host=settings.mqtt_host,
-        port=settings.mqtt_port,
-        client_id=settings.mqtt_client_id,
-        username=settings.mqtt_username,
-        password=settings.mqtt_password,
-        device_id=settings.device_id,
-        telemetry_topic=settings.telemetry_topic,
-        command_topic=settings.command_topic,
-        status_topic=settings.status_topic,
-        ack_topic=settings.ack_topic,
-        heartbeat_interval=settings.heartbeat_interval_seconds,
+    transport = create_transport(
+        settings=settings,
         on_haptic_command=lambda command: serial_handler.enqueue_haptic(
             command.intensity, command.duration_ms
         ),
-        studio_command_topic=settings.studio_command_topic,
         on_studio_command=lambda config: studio_manager.start_capture(config),
-        detection_topic=settings.detection_topic,
     )
     serial_handler = SerialHandler(
         device=settings.serial_device,
@@ -83,14 +68,14 @@ def main() -> None:
         stop_event=stop_event,
         command_ttl=settings.command_ttl_seconds,
         on_data=handle_serial_data,
-        on_response=mqtt_handler.publish_arduino_response,
+        on_response=transport.publish_arduino_response,
     )
     studio_manager = StudioManager(
         serial_handler=serial_handler,
         telemetry_buffer=telemetry_buffer,
         stop_event=stop_event,
     )
-    mqtt_handler.set_studio_manager(studio_manager)
+    transport.set_studio_manager(studio_manager)
 
     def inference_loop() -> None:
         interval = settings.inference_interval_seconds
@@ -104,7 +89,7 @@ def main() -> None:
                 continue
             event = activity_classifier.evaluate_window(snapshot, device_id=settings.device_id)
             if event is not None:
-                mqtt_handler.publish_detection(event)
+                transport.publish_detection(event)
                 emergency_haptic()
 
     def request_shutdown(signum: int, _: object) -> None:
@@ -114,11 +99,11 @@ def main() -> None:
     signal.signal(signal.SIGTERM, request_shutdown)
     signal.signal(signal.SIGINT, request_shutdown)
     serial_thread = threading.Thread(target=serial_handler.run, name="serial-reader", daemon=True)
-    heartbeat_thread = threading.Thread(target=mqtt_handler.heartbeat_loop, name="heartbeat", daemon=True)
+    heartbeat_thread = threading.Thread(target=transport.heartbeat_loop, name="heartbeat", daemon=True)
     inference_thread = threading.Thread(target=inference_loop, name="inference-worker", daemon=True)
 
     serial_thread.start()
-    mqtt_handler.start()
+    transport.start()
     heartbeat_thread.start()
     inference_thread.start()
 
@@ -129,7 +114,7 @@ def main() -> None:
     finally:
         studio_manager.cancel()
         telemetry_buffer.flush("shutdown")
-        mqtt_handler.stop()
+        transport.stop()
         serial_thread.join(timeout=3.0)
         heartbeat_thread.join(timeout=3.0)
         inference_thread.join(timeout=2.0)
