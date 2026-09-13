@@ -126,3 +126,103 @@ def test_create_transport_factory(monkeypatch):
     )
     assert isinstance(t_ble, BleTransport)
     assert t_ble.device_id == settings_ble.device_id
+
+
+def test_ensure_adapter_ready_no_bluezero(monkeypatch):
+    import healthkicks_edge.transport.ble.gatt_server as gatt_mod
+    from healthkicks_edge.transport.ble.gatt_server import BluetoothAdapterError, HealthKicksGattServer
+
+    monkeypatch.setattr(gatt_mod, "HAS_BLUEZERO", False)
+    with pytest.raises(BluetoothAdapterError, match="bluezero n'est pas disponible"):
+        HealthKicksGattServer.ensure_adapter_ready("hci0")
+
+
+def test_ensure_adapter_ready_no_available_adapters(monkeypatch):
+    import healthkicks_edge.transport.ble.gatt_server as gatt_mod
+    from healthkicks_edge.transport.ble.gatt_server import BluetoothAdapterError, HealthKicksGattServer
+
+    fake_adapter_mod = type("FakeAdapterMod", (), {})()
+    fake_adapter_cls = type("FakeAdapterCls", (), {"available": staticmethod(lambda: [])})
+    fake_adapter_mod.Adapter = fake_adapter_cls
+
+    monkeypatch.setattr(gatt_mod, "HAS_BLUEZERO", True)
+    monkeypatch.setattr(gatt_mod, "adapter", fake_adapter_mod)
+
+    with pytest.raises(BluetoothAdapterError, match="Aucun contrôleur Bluetooth"):
+        HealthKicksGattServer.ensure_adapter_ready("hci0")
+
+
+def test_ensure_adapter_ready_powers_on_adapter(monkeypatch):
+    import healthkicks_edge.transport.ble.gatt_server as gatt_mod
+    from healthkicks_edge.transport.ble.gatt_server import HealthKicksGattServer
+
+    class MockDongle:
+        def __init__(self, address):
+            self.address = address
+            self.powered = False
+
+    class MockAdapter:
+        address = "00:1A:7D:DA:71:13"
+
+        def __init__(self, address):
+            self.address = address
+            self.powered = False
+
+        @staticmethod
+        def available():
+            return [MockAdapter("00:1A:7D:DA:71:13")]
+
+    fake_adapter_mod = type("FakeAdapterMod", (), {"Adapter": MockAdapter})()
+
+    monkeypatch.setattr(gatt_mod, "HAS_BLUEZERO", True)
+    monkeypatch.setattr(gatt_mod, "adapter", fake_adapter_mod)
+
+    addr = HealthKicksGattServer.ensure_adapter_ready("hci0")
+    assert addr == "00:1A:7D:DA:71:13"
+
+
+def test_ensure_adapter_ready_rfkill_blocked_raises_actionable_error(monkeypatch):
+    import healthkicks_edge.transport.ble.gatt_server as gatt_mod
+    from healthkicks_edge.transport.ble.gatt_server import BluetoothAdapterError, HealthKicksGattServer
+
+    class BlockedAdapter:
+        address = "00:1A:7D:DA:71:13"
+
+        def __init__(self, address):
+            self.address = address
+
+        @property
+        def powered(self):
+            return False
+
+        @powered.setter
+        def powered(self, value):
+            raise RuntimeError("Operation not possible due to RF-kill")
+
+        @staticmethod
+        def available():
+            return [BlockedAdapter("00:1A:7D:DA:71:13")]
+
+    fake_adapter_mod = type("FakeAdapterMod", (), {"Adapter": BlockedAdapter})()
+
+    monkeypatch.setattr(gatt_mod, "HAS_BLUEZERO", True)
+    monkeypatch.setattr(gatt_mod, "adapter", fake_adapter_mod)
+
+    with pytest.raises(BluetoothAdapterError, match="sudo rfkill unblock bluetooth"):
+        HealthKicksGattServer.ensure_adapter_ready("hci0")
+
+
+def test_ble_transport_start_catches_adapter_error_gracefully(monkeypatch):
+    from healthkicks_edge.transport.ble.gatt_server import BluetoothAdapterError
+    from healthkicks_edge.transport.ble_transport import BleTransport
+
+    transport = BleTransport(device_id="HK-TEST")
+
+    def mock_failing_start():
+        raise BluetoothAdapterError("Aucun contrôleur Bluetooth")
+
+    monkeypatch.setattr(transport.gatt_server, "start", mock_failing_start)
+
+    # Should not raise an unhandled exception
+    transport.start()
+

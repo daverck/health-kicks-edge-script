@@ -187,10 +187,48 @@ CLI options:
 
 ---
 
+## Bluetooth BLE & BlueZ System Configuration
+
+Le serveur GATT BLE (`bluezero`) s'appuie sur la pile BlueZ officielle et le démon D-Bus de Linux.
+
+### 1. Paquets système requis
+
+Sur Raspberry Pi OS ou Debian :
+
+```sh
+sudo apt update
+sudo apt install -y bluez rfkill
+```
+
+### 2. Permissions utilisateur (Non-Root)
+
+Si le script ou le service systemd s'exécute sous un utilisateur non-root (ex: `healthkicks_edge` ou `dserck`), ajoutez l'utilisateur aux groupes système `dialout` (accès série UART/Arduino) et `bluetooth` :
+
+```sh
+sudo usermod -aG dialout,bluetooth $USER
+```
+
+### 3. Dépannage Bluetooth & `rfkill`
+
+Si l'adaptateur `hci0` est éteint ou bloqué par rfkill, l'agent tente une mise sous tension automatique. En cas de blocage persistant :
+
+```sh
+# Débloquer le contrôleur Bluetooth
+sudo rfkill unblock bluetooth
+
+# Vérifier le statut de l'adaptateur
+bluetoothctl show
+
+# Mise sous tension manuelle
+bluetoothctl power on
+```
+
+---
+
 ## Development
 
 ```sh
-# Install Python dependencies
+# Install Python dependencies (including bluezero)
 uv sync
 
 # Run the edge agent directly

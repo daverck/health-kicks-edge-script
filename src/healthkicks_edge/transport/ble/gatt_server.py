@@ -4,10 +4,12 @@ Contract Reference: contracts/ble_gatt_specs.md
 from __future__ import annotations
 
 import logging
+import shutil
 import struct
+import subprocess
 import threading
 import time
-from typing import Callable
+from typing import Any, Callable
 
 from healthkicks_edge.schemas import HapticCommand, StudioCaptureConfig
 from healthkicks_edge.transport.ble.constants import (
@@ -21,6 +23,11 @@ from healthkicks_edge.transport.ble.constants import (
 )
 
 LOGGER = logging.getLogger(__name__)
+
+
+class BluetoothAdapterError(RuntimeError):
+    """Raised when the Bluetooth adapter cannot be initialized, is missing, or is blocked."""
+    pass
 
 # Safe import of bluezero (only available on Linux with D-Bus/BlueZ)
 try:
@@ -79,27 +86,74 @@ class HealthKicksGattServer:
         if on_studio_cancel:
             self._on_studio_cancel = on_studio_cancel
 
-    def build_peripheral(self) -> Any:
-        """Construct the Peripheral GATT hierarchy with the HealthKicks Service."""
+    @classmethod
+    def ensure_adapter_ready(cls, adapter_name: str = "hci0") -> str:
+        """Inspects the BlueZ adapter, unblocks rfkill if needed, and ensures powered=True.
+        Returns the resolved adapter MAC address or raises BluetoothAdapterError.
+        """
         if not HAS_BLUEZERO:
-            raise RuntimeError(
-                "bluezero is required for BLE GATT Server on Linux. "
-                "Ensure bluezero and D-Bus/BlueZ are installed and active."
+            raise BluetoothAdapterError(
+                "bluezero n'est pas disponible. Assurez-vous que bluezero et BlueZ/D-Bus sont installés."
             )
 
-        # Check adapter availability
+        # 1. Proactive rfkill unblock if utility is available
+        rfkill_bin = shutil.which("rfkill")
+        if rfkill_bin:
+            try:
+                subprocess.run([rfkill_bin, "unblock", "bluetooth"], capture_output=True, check=False)
+            except Exception as ex:
+                LOGGER.debug("rfkill_unblock_attempt_failed error=%s", ex)
+
+        # 2. Inspect available adapters
         try:
             available_adapters = list(adapter.Adapter.available())
-            adapter_address = None
-            for a in available_adapters:
-                if a.address or self.adapter_name in str(a):
-                    adapter_address = a.address
-                    break
-            if not adapter_address and available_adapters:
-                adapter_address = available_adapters[0].address
         except Exception as ex:
-            LOGGER.warning("could_not_query_adapters error=%s, using fallback", ex)
-            adapter_address = None
+            LOGGER.error("failed_to_query_bluez_adapters error=%s", ex)
+            raise BluetoothAdapterError(
+                f"Impossible d'interroger BlueZ via D-Bus: {ex}. Vérifiez que le service bluetooth est actif."
+            ) from ex
+
+        if not available_adapters:
+            LOGGER.error("Aucun contrôleur Bluetooth (%s) détecté sur cette machine.", adapter_name)
+            raise BluetoothAdapterError(
+                f"Aucun contrôleur Bluetooth ({adapter_name}) détecté sur cette machine. "
+                "Vérifiez le contrôleur matériel ou le dongle USB."
+            )
+
+        # Match adapter_name or pick first available
+        target_adapter = None
+        for a in available_adapters:
+            if adapter_name in str(a) or (hasattr(a, "address") and a.address == adapter_name):
+                target_adapter = a
+                break
+        if target_adapter is None:
+            target_adapter = available_adapters[0]
+
+        target_address = target_adapter.address if hasattr(target_adapter, "address") else str(target_adapter)
+
+        # 3. Verify and ensure adapter is powered on
+        try:
+            dongle = adapter.Adapter(target_address)
+            if not dongle.powered:
+                LOGGER.info("powering_on_bluetooth_adapter adapter=%s", target_address)
+                dongle.powered = True
+                LOGGER.info("bluetooth_adapter_powered_on adapter=%s", target_address)
+        except Exception as ex:
+            err_str = str(ex)
+            if any(k in err_str.lower() for k in ("rfkill", "rf-kill", "blocked")):
+                msg = "L'adaptateur Bluetooth est bloqué par rfkill. Exécutez 'sudo rfkill unblock bluetooth'."
+                LOGGER.critical(msg)
+                raise BluetoothAdapterError(msg) from ex
+            LOGGER.error("failed_to_power_on_bluetooth_adapter error=%s", ex)
+            raise BluetoothAdapterError(
+                f"Échec de l'activation de l'adaptateur Bluetooth ({target_address}): {ex}"
+            ) from ex
+
+        return target_address
+
+    def build_peripheral(self) -> Any:
+        """Construct the Peripheral GATT hierarchy with the HealthKicks Service."""
+        adapter_address = self.ensure_adapter_ready(self.adapter_name)
 
         app = peripheral.Peripheral(
             adapter_address=adapter_address,

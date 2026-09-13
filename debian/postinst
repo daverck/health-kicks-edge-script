@@ -6,6 +6,7 @@ if ! id healthkicks_edge >/dev/null 2>&1; then
     adduser --system --group --no-create-home --disabled-login healthkicks_edge
 fi
 adduser healthkicks_edge dialout >/dev/null 2>&1 || true
+adduser healthkicks_edge bluetooth >/dev/null 2>&1 || true
 
 # 2. Create necessary directories with appropriate ownership and permissions
 install -d -o healthkicks_edge -g healthkicks_edge -m 0750 /var/lib/healthkicks

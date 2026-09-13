@@ -15,7 +15,7 @@ from healthkicks_edge.schemas import (
 )
 from healthkicks_edge.transport.base import Transport
 from healthkicks_edge.transport.ble.burst_packetizer import packetize_readings
-from healthkicks_edge.transport.ble.gatt_server import HealthKicksGattServer
+from healthkicks_edge.transport.ble.gatt_server import BluetoothAdapterError, HealthKicksGattServer
 
 if TYPE_CHECKING:
     from healthkicks_edge.studio_manager import StudioManager
@@ -59,7 +59,14 @@ class BleTransport(Transport):
 
     def start(self) -> None:
         LOGGER.info("starting_ble_transport device_name=%s", self.device_name)
-        self.gatt_server.start()
+        try:
+            self.gatt_server.start()
+        except BluetoothAdapterError as err:
+            LOGGER.error(
+                "ble_transport_start_failed: %s. "
+                "Le serveur BLE est inactif mais le service Edge continue d'opérer.",
+                err,
+            )
 
     def stop(self) -> None:
         LOGGER.info("stopping_ble_transport")
