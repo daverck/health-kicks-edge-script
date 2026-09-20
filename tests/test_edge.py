@@ -56,17 +56,17 @@ class FakeMQTTClient:
 
 
 def test_haptic_command_constraints() -> None:
-    # Commande valide sans device_id
+    # Valid command without device_id
     cmd = HapticCommand(intensity=255, duration_ms=10000)
     assert cmd.intensity == 255
     assert cmd.duration_ms == 10000
 
-    # Payload épuré sans device_id accepté
+    # Clean payload without device_id is accepted
     cmd_clean = HapticCommand.model_validate_json('{"intensity": 80, "duration_ms": 500}')
     assert cmd_clean.intensity == 80
     assert cmd_clean.duration_ms == 500
 
-    # Le payload avec device_id doit être rejeté (StrictModel interdit les champs supplémentaires)
+    # Payload with device_id must be rejected (StrictModel forbids extra fields)
     with pytest.raises(ValidationError):
         HapticCommand.model_validate_json(
             f'{{"device_id": "{TEST_DEVICE_ID}", "intensity": 80, "duration_ms": 500}}'
@@ -133,7 +133,7 @@ def test_mqtt_handler_on_message_rejects_payload_with_device_id(
 def test_settings_dynamic_topics_default_and_override(monkeypatch: pytest.MonkeyPatch) -> None:
     from healthkicks_edge.config import Settings
 
-    # Vérification des valeurs par défaut dynamiques avec fallback HK-1
+    # Verify dynamic default values with HK-1 fallback
     monkeypatch.delenv("EDGE_DEVICE_ID", raising=False)
     monkeypatch.delenv("EDGE_TELEMETRY_TOPIC", raising=False)
     monkeypatch.delenv("EDGE_COMMAND_TOPIC", raising=False)
@@ -151,7 +151,7 @@ def test_settings_dynamic_topics_default_and_override(monkeypatch: pytest.Monkey
     assert settings.mqtt_client_id == f"{TEST_DEVICE_ID}-edge"
     assert settings.continuously_send_telemetry is False
 
-    # Vérification avec surcharge via variable d'environnement
+    # Verify override via environment variable
     custom_id = "HK-2"
     monkeypatch.setenv("EDGE_DEVICE_ID", custom_id)
     monkeypatch.setenv("EDGE_CONTINUOUSLY_SEND_TELEMETRY", "true")

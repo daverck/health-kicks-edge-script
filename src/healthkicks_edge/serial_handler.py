@@ -109,7 +109,7 @@ class SerialHandler:
 
         import json
 
-        # Découpe proprement au premier ':' pour récupérer tout le JSON après 'DATA:'
+        # Split cleanly at the first ':' to extract the entire JSON payload after 'DATA:'
         _, _, payload_str = text.partition(":")
         payload_str = payload_str.strip()
 

@@ -93,7 +93,7 @@ class BleTransport(Transport):
         )
 
         if not is_studio:
-            # En mode BLE nominal, la télémétrie continue n'est pas diffusée par paquets
+            # In nominal BLE mode, continuous telemetry is not streamed via burst packets
             LOGGER.debug("ignoring_nominal_telemetry_batch_in_ble_mode count=%d", len(batch.readings))
             return
 
@@ -103,12 +103,12 @@ class BleTransport(Transport):
             len(batch.readings),
         )
 
-        # 1. Notifier FINISHED sur Studio Control avant de lancer le burst
+        # 1. Notify FINISHED on Studio Control before starting the burst transfer
         sample_count = len(batch.readings)
         sess_id = batch.metadata.session_id or ""
         self.gatt_server.notify_studio_status(f"FINISHED {sample_count} {sess_id}".strip())
 
-        # 2. Découper la télémétrie en paquets BLE MTU-adaptés
+        # 2. Split telemetry into BLE MTU-adapted packets
         start_ts = batch.metadata.window_start.timestamp() if hasattr(batch.metadata.window_start, "timestamp") else None
         packets = packetize_readings(
             readings=batch.readings,
@@ -116,7 +116,7 @@ class BleTransport(Transport):
             session_start_timestamp=start_ts,
         )
 
-        # 3. Diffuser séquentiellement sur Studio Data Burst
+        # 3. Stream sequentially over Studio Data Burst
         sent_count = self.gatt_server.send_burst_packets(packets)
         LOGGER.info(
             "ble_burst_transfer_complete total_packets=%d samples=%d",

@@ -91,7 +91,7 @@ def test_mqtt_studio_start_valid_command() -> None:
     msg = _make_msg(topic, payload)
     handler._on_message(handler.client, None, msg)  # type: ignore[arg-type]
 
-    # Vérifie que start_capture a été appelé avec un StudioCaptureConfig valide
+    # Verify that start_capture was called with a valid StudioCaptureConfig
     mock_studio.start_capture.assert_called_once()
     called_config: StudioCaptureConfig = mock_studio.start_capture.call_args[0][0]
     assert called_config.session_id == "session-cloud-123"
@@ -100,7 +100,7 @@ def test_mqtt_studio_start_valid_command() -> None:
     assert called_config.pulse_count == 3
     assert called_config.pulse_intensity == 200
 
-    # Vérifie la publication de l'acquittement 'started' sur ack_topic
+    # Verify publication of 'started' acknowledgement on ack_topic
     fake_client: FakeMQTTClient = handler.client  # type: ignore[assignment]
     ack_messages = [
         json.loads(p) for t, p, _ in fake_client.published_messages
@@ -116,7 +116,7 @@ def test_mqtt_studio_start_valid_command() -> None:
 
 def test_mqtt_studio_start_busy_session(caplog: pytest.LogCaptureFixture) -> None:
     mock_studio = MagicMock()
-    mock_studio.start_capture.return_value = False  # Session occupée
+    mock_studio.start_capture.return_value = False  # Session is busy
 
     handler = MQTTHandler(
         "localhost", 1883, f"{TEST_DEVICE_ID}-edge", None, None, TEST_DEVICE_ID,
@@ -138,7 +138,7 @@ def test_mqtt_studio_start_busy_session(caplog: pytest.LogCaptureFixture) -> Non
 
     assert "studio_session_busy" in caplog.text
 
-    # Vérifie l'envoi de l'acquittement 'busy'
+    # Verify publication of 'busy' acknowledgement
     fake_client: FakeMQTTClient = handler.client  # type: ignore[assignment]
     ack_messages = [
         json.loads(p) for t, p, _ in fake_client.published_messages

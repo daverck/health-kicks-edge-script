@@ -95,7 +95,7 @@ def simulate_offline_burst() -> None:
 
 def match_device(device: Any, adv_data: Any) -> bool:
     """Match device by Service UUID or Advertised Local Name."""
-    # 1. Vérification UUID de service (insensible à la casse)
+    # 1. Check Service UUID (case-insensitive)
     service_match = any(
         FOOTWEAR_SERVICE_UUID.lower() == str(u).lower()
         for u in (getattr(adv_data, "service_uuids", None) or [])
@@ -103,7 +103,7 @@ def match_device(device: Any, adv_data: Any) -> bool:
     if service_match:
         return True
 
-    # 2. Vérification sur le nom (local_name de l'adv ou device.name)
+    # 2. Check advertised local name or device name
     local_name = getattr(adv_data, "local_name", None) or getattr(device, "name", None) or ""
     if "HealthKicks" in local_name:
         return True
