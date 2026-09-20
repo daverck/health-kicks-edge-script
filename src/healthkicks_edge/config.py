@@ -35,10 +35,19 @@ class Settings:
     transport: str = "mqtt"
     ble_adapter: str = "hci0"
     ble_device_name: str = ""
+    user_id: int | str | None = None
 
     @classmethod
     def from_env(cls) -> Settings:
         device_id = os.getenv("EDGE_DEVICE_ID", "HK-1")
+        user_id_raw = (os.getenv("EDGE_USER_ID") or os.getenv("USER_ID") or "").strip()
+        user_id: int | str | None = None
+        if user_id_raw:
+            try:
+                user_id = int(user_id_raw)
+            except ValueError:
+                user_id = user_id_raw
+
         prefix = f"healthkicks/v1/{device_id}"
 
         default_model_path = "/opt/healthkicks_edge/models/activity_classifier.joblib"
@@ -112,5 +121,6 @@ class Settings:
             transport=os.getenv("EDGE_TRANSPORT", "mqtt").lower().strip(),
             ble_adapter=os.getenv("EDGE_BLE_ADAPTER", "hci0"),
             ble_device_name=os.getenv("EDGE_BLE_NAME", f"HealthKicks-{device_id}"),
+            user_id=user_id,
         )
 

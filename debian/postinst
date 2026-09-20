@@ -18,22 +18,28 @@ if [ -f /opt/healthkicks_edge/models/activity_classifier.joblib ]; then
     chmod 0644 /opt/healthkicks_edge/models/activity_classifier.joblib
 fi
 
-# 3. Determine target device ID from environment variable (EDGE_DEVICE_ID or DEVICE_ID)
-#    prior to service installation, or fallback to existing configuration / default "HK-1"
+# 3. Determine target device ID and user ID from environment variables
+#    prior to service installation, or fallback to existing configuration / default
 TARGET_DEVICE_ID="${EDGE_DEVICE_ID:-${DEVICE_ID:-}}"
+TARGET_USER_ID="${EDGE_USER_ID:-${USER_ID:-}}"
 
 if [ -z "$TARGET_DEVICE_ID" ] && [ -f /etc/healthkicks_edge/healthkicks_edge.env ]; then
     TARGET_DEVICE_ID=$(grep -E '^[[:space:]]*EDGE_DEVICE_ID=' /etc/healthkicks_edge/healthkicks_edge.env | head -n 1 | cut -d'=' -f2- | tr -d '"'\'' ')
+fi
+
+if [ -z "$TARGET_USER_ID" ] && [ -f /etc/healthkicks_edge/healthkicks_edge.env ]; then
+    TARGET_USER_ID=$(grep -E '^[[:space:]]*EDGE_USER_ID=' /etc/healthkicks_edge/healthkicks_edge.env | head -n 1 | cut -d'=' -f2- | tr -d '"'\'' ')
 fi
 
 if [ -z "$TARGET_DEVICE_ID" ]; then
     TARGET_DEVICE_ID="HK-1"
 fi
 
-# 4. Generate /etc/healthkicks_edge/healthkicks_edge.env with the target device ID
+# 4. Generate /etc/healthkicks_edge/healthkicks_edge.env with the target configuration
 if [ ! -f /etc/healthkicks_edge/healthkicks_edge.env ]; then
     sed -e "s|HK-1|${TARGET_DEVICE_ID}|g" \
         -e "s|healthkicks-pi-001|${TARGET_DEVICE_ID}|g" \
+        -e "s|^EDGE_USER_ID=.*|EDGE_USER_ID=${TARGET_USER_ID}|g" \
         /etc/healthkicks_edge/healthkicks_edge.env.example > /etc/healthkicks_edge/healthkicks_edge.env
     chown healthkicks_edge:healthkicks_edge /etc/healthkicks_edge/healthkicks_edge.env
     chmod 0600 /etc/healthkicks_edge/healthkicks_edge.env
@@ -44,6 +50,13 @@ else
         sed -i -E "s|healthkicks/v1/[^/]+|healthkicks/v1/${TARGET_DEVICE_ID}|g" /etc/healthkicks_edge/healthkicks_edge.env
         sed -i -E "s|^[[:space:]]*EDGE_MQTT_CLIENT_ID=.*|EDGE_MQTT_CLIENT_ID=${TARGET_DEVICE_ID}-edge|" /etc/healthkicks_edge/healthkicks_edge.env
     fi
+    if [ -n "${EDGE_USER_ID:-${USER_ID:-}}" ]; then
+        if grep -qE '^[[:space:]]*EDGE_USER_ID=' /etc/healthkicks_edge/healthkicks_edge.env; then
+            sed -i -E "s|^[[:space:]]*EDGE_USER_ID=.*|EDGE_USER_ID=${TARGET_USER_ID}|" /etc/healthkicks_edge/healthkicks_edge.env
+        else
+            echo "EDGE_USER_ID=${TARGET_USER_ID}" >> /etc/healthkicks_edge/healthkicks_edge.env
+        fi
+    fi
 fi
 
 # 5. Configure Mosquitto AWS bridge topic routing and client ID based on the target device ID
@@ -53,6 +66,8 @@ if [ -f /etc/mosquitto/conf.d/aws-bridge.conf ]; then
     sed -i -E "s|topic healthkicks/v1/[^/]+/commands/haptic|topic healthkicks/v1/${TARGET_DEVICE_ID}/commands/haptic|g" /etc/mosquitto/conf.d/aws-bridge.conf
     sed -i -E "s|topic healthkicks/v1/[^/]+/commands/studio/start|topic healthkicks/v1/${TARGET_DEVICE_ID}/commands/studio/start|g" /etc/mosquitto/conf.d/aws-bridge.conf
     sed -i -E "s|topic healthkicks/v1/[^/]+/events/detection|topic healthkicks/v1/${TARGET_DEVICE_ID}/events/detection|g" /etc/mosquitto/conf.d/aws-bridge.conf
+    sed -i -E "s|topic healthkicks/v1/[^/]+/status|topic healthkicks/v1/${TARGET_DEVICE_ID}/status|g" /etc/mosquitto/conf.d/aws-bridge.conf
+    sed -i -E "s|topic healthkicks/v1/[^/]+/commands/ack|topic healthkicks/v1/${TARGET_DEVICE_ID}/commands/ack|g" /etc/mosquitto/conf.d/aws-bridge.conf
 fi
 
 # 6. Reload systemd daemon and enable/restart the service if systemctl is available

@@ -139,6 +139,8 @@ def test_settings_dynamic_topics_default_and_override(monkeypatch: pytest.Monkey
 
     # Verify dynamic default values with HK-1 fallback
     monkeypatch.delenv("EDGE_DEVICE_ID", raising=False)
+    monkeypatch.delenv("EDGE_USER_ID", raising=False)
+    monkeypatch.delenv("USER_ID", raising=False)
     monkeypatch.delenv("EDGE_TELEMETRY_TOPIC", raising=False)
     monkeypatch.delenv("EDGE_COMMAND_TOPIC", raising=False)
     monkeypatch.delenv("EDGE_STATUS_TOPIC", raising=False)
@@ -147,6 +149,7 @@ def test_settings_dynamic_topics_default_and_override(monkeypatch: pytest.Monkey
 
     settings = Settings.from_env()
     assert settings.device_id == TEST_DEVICE_ID
+    assert settings.user_id is None
     prefix = f"healthkicks/v1/{TEST_DEVICE_ID}"
     assert settings.telemetry_topic == f"{prefix}/telemetry/raw"
     assert settings.command_topic == f"{prefix}/commands/haptic"
@@ -158,9 +161,11 @@ def test_settings_dynamic_topics_default_and_override(monkeypatch: pytest.Monkey
     # Verify override via environment variable
     custom_id = "HK-2"
     monkeypatch.setenv("EDGE_DEVICE_ID", custom_id)
+    monkeypatch.setenv("EDGE_USER_ID", "42")
     monkeypatch.setenv("EDGE_CONTINUOUSLY_SEND_TELEMETRY", "true")
     settings_custom = Settings.from_env()
     assert settings_custom.device_id == custom_id
+    assert settings_custom.user_id == 42
     custom_prefix = f"healthkicks/v1/{custom_id}"
     assert settings_custom.telemetry_topic == f"{custom_prefix}/telemetry/raw"
     assert settings_custom.command_topic == f"{custom_prefix}/commands/haptic"
@@ -174,13 +179,15 @@ def test_lwt_is_flat(monkeypatch: pytest.MonkeyPatch) -> None:
     monkeypatch.setattr(mqtt_handler.mqtt, "Client", FakeMQTTClient)
     handler = MQTTHandler(
         "localhost", 1883, "client", None, None, TEST_DEVICE_ID,
-        "telemetry", "command", "status", "ack", 30, lambda _: None
+        "telemetry", "command", "status", "ack", 30, lambda _: None,
+        user_id=123,
     )
     assert handler.client.will is not None
     will_data = json.loads(handler.client.will[1])
     assert will_data["state"] == "offline"
     assert will_data["device_id"] == TEST_DEVICE_ID
     assert will_data["gateway"] == "edge"
+    assert will_data["user_id"] == 123
     assert will_data["reason"] == "unexpected_disconnection"
     assert "timestamp" in will_data
 
@@ -202,7 +209,8 @@ def test_status_published_on_connect_and_shutdown(monkeypatch: pytest.MonkeyPatc
     monkeypatch.setattr(mqtt_handler.mqtt, "Client", MockClient)
     handler = MQTTHandler(
         "localhost", 1883, "client", None, None, TEST_DEVICE_ID,
-        "telemetry", "command", "healthkicks/v1/HK-1/status", "ack", 30, lambda _: None
+        "telemetry", "command", "healthkicks/v1/HK-1/status", "ack", 30, lambda _: None,
+        user_id="user_abc",
     )
 
     # 1. On connect: should publish "online" with top-level device_id, state, gateway, retain=False
@@ -215,6 +223,7 @@ def test_status_published_on_connect_and_shutdown(monkeypatch: pytest.MonkeyPatc
 
     payload = json.loads(payload_str)
     assert payload["device_id"] == TEST_DEVICE_ID
+    assert payload["user_id"] == "user_abc"
     assert payload["state"] == "online"
     assert payload["gateway"] == "edge"
     assert "timestamp" in payload
@@ -230,6 +239,7 @@ def test_status_published_on_connect_and_shutdown(monkeypatch: pytest.MonkeyPatc
     assert retain_off is False
     payload_off = json.loads(payload_off_str)
     assert payload_off["device_id"] == TEST_DEVICE_ID
+    assert payload_off["user_id"] == "user_abc"
     assert payload_off["state"] == "offline"
     assert payload_off["reason"] == "graceful_shutdown"
 

@@ -49,5 +49,6 @@ def create_transport(
         studio_command_topic=settings.studio_command_topic,
         on_studio_command=on_studio_command,
         detection_topic=settings.detection_topic,
+        user_id=settings.user_id,
     )
     return MqttTransport(mqtt_handler)

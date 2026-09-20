@@ -47,8 +47,10 @@ class MQTTHandler:
         studio_manager: StudioManager | None = None,
         on_studio_command: Callable[[StudioCaptureConfig], bool] | None = None,
         detection_topic: str | None = None,
+        user_id: int | str | None = None,
     ) -> None:
         self._device_id = device_id
+        self._user_id = user_id
         self._telemetry_topic = telemetry_topic
         self._detection_topic = (
             detection_topic or f"healthkicks/v1/{device_id}/events/detection"
@@ -68,13 +70,16 @@ class MQTTHandler:
         self.client = mqtt.Client(callback_api_version=CallbackAPIVersion.VERSION2, client_id=client_id)
         if username:
             self.client.username_pw_set(username, password)
-        lwt_payload = {
+        lwt_payload: dict[str, object] = {
             "device_id": self._device_id,
             "state": "offline",
             "gateway": "edge",
             "reason": "unexpected_disconnection",
             "timestamp": datetime.now(timezone.utc).isoformat(),
         }
+        if self._user_id is not None:
+            lwt_payload["user_id"] = self._user_id
+
         self.client.will_set(
             status_topic,
             json.dumps(lwt_payload),
@@ -200,7 +205,7 @@ class MQTTHandler:
         cpu_temp = self._cpu_temperature()
         uptime = int(time.monotonic() - self._started_at)
         now_iso = datetime.now(timezone.utc).isoformat()
-        status_dict = {
+        status_dict: dict[str, object] = {
             "device_id": self._device_id,
             "state": state,
             "gateway": "edge",
@@ -220,6 +225,16 @@ class MQTTHandler:
                 "cpu_temp": cpu_temp,
             },
         }
+        if self._user_id is not None:
+            status_dict["user_id"] = self._user_id
+
+        LOGGER.info(
+            "mqtt_publish_status topic=%s state=%s user_id=%s uptime=%ss",
+            self._status_topic,
+            state,
+            self._user_id,
+            uptime,
+        )
         self._publish(self._status_topic, json.dumps(status_dict), qos=1, retain=False)
 
     @staticmethod
