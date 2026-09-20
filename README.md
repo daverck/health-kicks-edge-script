@@ -129,6 +129,7 @@ Attach the following policy to the device certificate, ensuring `HK-1` matches y
       "Resource": [
         "arn:aws:iot:eu-north-1:693906847467:topic/healthkicks/v1/HK-1/telemetry/raw",
         "arn:aws:iot:eu-north-1:693906847467:topic/healthkicks/v1/HK-1/events/detection",
+        "arn:aws:iot:eu-north-1:693906847467:topic/healthkicks/v1/HK-1/status",
         "arn:aws:iot:eu-north-1:693906847467:topic/healthkicks/v1/HK-1/commands/haptic",
         "arn:aws:iot:eu-north-1:693906847467:topic/healthkicks/v1/HK-1/commands/studio/start"
       ]
@@ -160,6 +161,13 @@ sudo mosquitto -c /etc/mosquitto/mosquitto.conf -v   # Syntax test (Ctrl+C to ex
 sudo systemctl restart mosquitto
 mosquitto_sub -t '$SYS/broker/bridge/+/connected' -v   # 1 = bridge connected
 ```
+
+### 4. Device Presence & Lifecycle Fallback (Legacy)
+
+Presence tracking operates by default via heartbeats and LWT published to `healthkicks/v1/{device_id}/status`.
+
+For architectures using native AWS IoT Core Lifecycle Events (`$aws/events/presence/+/+`) to reliably capture abrupt power losses or network disconnections at the TLS broker level, refer to the dedicated guide:
+- 📖 [AWS IoT Presence & Lifecycle Events Ingestion (Legacy)](docs/aws-iot-presence-legacy.md)
 
 ---
 
