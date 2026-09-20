@@ -68,11 +68,18 @@ class MQTTHandler:
         self.client = mqtt.Client(callback_api_version=CallbackAPIVersion.VERSION2, client_id=client_id)
         if username:
             self.client.username_pw_set(username, password)
+        lwt_payload = {
+            "device_id": self._device_id,
+            "state": "offline",
+            "gateway": "edge",
+            "reason": "unexpected_disconnection",
+            "timestamp": datetime.now(timezone.utc).isoformat(),
+        }
         self.client.will_set(
             status_topic,
-            '{"state":"offline","reason":"unexpected_disconnection"}',
+            json.dumps(lwt_payload),
             qos=1,
-            retain=True,
+            retain=False,
         )
         self.client.on_connect = self._on_connect
         self.client.on_message = self._on_message
@@ -83,10 +90,13 @@ class MQTTHandler:
     def start(self) -> None:
         self.client.connect_async(self._host, self._port, keepalive=60)
         self.client.loop_start()
-        self._publish_status("online")
 
     def stop(self) -> None:
         self._stop_event.set()
+        try:
+            self._publish_status("offline", reason="graceful_shutdown")
+        except Exception:
+            pass
         self.client.loop_stop()
         self.client.disconnect()
 
@@ -121,11 +131,20 @@ class MQTTHandler:
         while not self._stop_event.wait(self._heartbeat_interval):
             self._publish_status("online")
 
-    def _on_connect(self, client: mqtt.Client, _: object, __: dict, reason_code: mqtt.ReasonCode, ___: object) -> None:
-        if reason_code == 0:
+    def _on_connect(
+        self,
+        client: mqtt.Client,
+        _: object,
+        __: dict,
+        reason_code: mqtt.ReasonCode | int,
+        ___: object,
+    ) -> None:
+        is_ok = reason_code == 0 or (hasattr(reason_code, "is_failure") and not reason_code.is_failure)
+        if is_ok:
             client.subscribe(self._command_topic, qos=1)
             client.subscribe(self._studio_command_topic, qos=1)
             LOGGER.info("mqtt_connected host=%s port=%s", self._host, self._port)
+            self._publish_status("online")
         else:
             LOGGER.warning("mqtt_connection_refused reason=%s", reason_code)
 
@@ -179,27 +198,29 @@ class MQTTHandler:
 
     def _publish_status(self, state: str, reason: str | None = None) -> None:
         cpu_temp = self._cpu_temperature()
-        status = self._status(
-            state,
-            reason=reason,
-            uptime=int(time.monotonic() - self._started_at),
-            cpu_temp=cpu_temp,
-        )
-        self._publish(self._status_topic, status.model_dump_json(), qos=1, retain=True)
-
-    def _status(
-        self,
-        state: str,
-        reason: str | None = None,
-        uptime: int | None = None,
-        cpu_temp: float | None = None,
-    ) -> DeviceStatus:
-        return DeviceStatus(
-            header=Header(device_id=self._device_id, timestamp=datetime.now(timezone.utc)),
-            payload=DeviceStatusPayload(
-                state=state, reason=reason, uptime=uptime, cpu_temp=cpu_temp
-            ),
-        )
+        uptime = int(time.monotonic() - self._started_at)
+        now_iso = datetime.now(timezone.utc).isoformat()
+        status_dict = {
+            "device_id": self._device_id,
+            "state": state,
+            "gateway": "edge",
+            "timestamp": now_iso,
+            "reason": reason,
+            "uptime": uptime,
+            "cpu_temp": cpu_temp,
+            "header": {
+                "device_id": self._device_id,
+                "timestamp": now_iso,
+                "schema_version": "1.0",
+            },
+            "payload": {
+                "state": state,
+                "reason": reason,
+                "uptime": uptime,
+                "cpu_temp": cpu_temp,
+            },
+        }
+        self._publish(self._status_topic, json.dumps(status_dict), qos=1, retain=False)
 
     @staticmethod
     def _cpu_temperature() -> float | None:

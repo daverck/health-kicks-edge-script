@@ -41,6 +41,7 @@ def fake_mqtt_message(haptic_topic: str, haptic_clean_payload: bytes):
 class FakeMQTTClient:
     def __init__(self, **_: object) -> None:
         self.will: tuple[object, ...] | None = None
+        self.subscriptions: list[tuple[str, int]] = []
 
     def username_pw_set(self, *_: object) -> None:
         pass
@@ -50,6 +51,9 @@ class FakeMQTTClient:
 
     def reconnect_delay_set(self, **_: object) -> None:
         pass
+
+    def subscribe(self, topic: str, qos: int = 0) -> None:
+        self.subscriptions.append((topic, qos))
 
     def publish(self, *args: object, **kwargs: object) -> object:
         return type("Result", (), {"rc": 0})()
@@ -173,9 +177,61 @@ def test_lwt_is_flat(monkeypatch: pytest.MonkeyPatch) -> None:
         "telemetry", "command", "status", "ack", 30, lambda _: None
     )
     assert handler.client.will is not None
-    assert json.loads(handler.client.will[1]) == {
-        "state": "offline", "reason": "unexpected_disconnection"
-    }
+    will_data = json.loads(handler.client.will[1])
+    assert will_data["state"] == "offline"
+    assert will_data["device_id"] == TEST_DEVICE_ID
+    assert will_data["gateway"] == "edge"
+    assert will_data["reason"] == "unexpected_disconnection"
+    assert "timestamp" in will_data
+
+
+def test_status_published_on_connect_and_shutdown(monkeypatch: pytest.MonkeyPatch) -> None:
+    published: list[tuple[str, str, int, bool]] = []
+
+    class MockClient(FakeMQTTClient):
+        def publish(self, topic: str, payload: str, qos: int = 0, retain: bool = False) -> object:
+            published.append((topic, payload, qos, retain))
+            return type("Result", (), {"rc": 0})()
+
+        def loop_stop(self) -> None:
+            pass
+
+        def disconnect(self) -> None:
+            pass
+
+    monkeypatch.setattr(mqtt_handler.mqtt, "Client", MockClient)
+    handler = MQTTHandler(
+        "localhost", 1883, "client", None, None, TEST_DEVICE_ID,
+        "telemetry", "command", "healthkicks/v1/HK-1/status", "ack", 30, lambda _: None
+    )
+
+    # 1. On connect: should publish "online" with top-level device_id, state, gateway, retain=False
+    handler._on_connect(handler.client, None, {}, 0, None)  # type: ignore[arg-type]
+    assert len(published) == 1
+    topic, payload_str, qos, retain = published[0]
+    assert topic == "healthkicks/v1/HK-1/status"
+    assert retain is False
+    assert qos == 1
+
+    payload = json.loads(payload_str)
+    assert payload["device_id"] == TEST_DEVICE_ID
+    assert payload["state"] == "online"
+    assert payload["gateway"] == "edge"
+    assert "timestamp" in payload
+    assert "uptime" in payload
+    assert payload["header"]["device_id"] == TEST_DEVICE_ID
+    assert payload["payload"]["state"] == "online"
+
+    # 2. On stop: should publish "offline" (graceful_shutdown) with retain=False
+    handler.stop()
+    assert len(published) == 2
+    topic_off, payload_off_str, qos_off, retain_off = published[1]
+    assert topic_off == "healthkicks/v1/HK-1/status"
+    assert retain_off is False
+    payload_off = json.loads(payload_off_str)
+    assert payload_off["device_id"] == TEST_DEVICE_ID
+    assert payload_off["state"] == "offline"
+    assert payload_off["reason"] == "graceful_shutdown"
 
 
 def test_expired_command_is_dropped() -> None:
