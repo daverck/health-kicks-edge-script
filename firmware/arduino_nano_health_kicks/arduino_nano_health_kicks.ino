@@ -111,27 +111,38 @@ void loop() {
 
   // Request 14 bytes (6 Accel, 2 Temp, 6 Gyro)
   if (Wire.requestFrom(MPU_ADDR, 14, true) == 14) {
-    int16_t ax = (Wire.read() << 8) | Wire.read();
-    int16_t ay = (Wire.read() << 8) | Wire.read();
-    int16_t az = (Wire.read() << 8) | Wire.read();
+    int16_t chip_ax = (Wire.read() << 8) | Wire.read();
+    int16_t chip_ay = (Wire.read() << 8) | Wire.read();
+    int16_t chip_az = (Wire.read() << 8) | Wire.read();
     Wire.read(); Wire.read(); // Temperature bytes ignored
-    int16_t gx = (Wire.read() << 8) | Wire.read();
-    int16_t gy = (Wire.read() << 8) | Wire.read();
-    int16_t gz = (Wire.read() << 8) | Wire.read();
+    int16_t chip_gx = (Wire.read() << 8) | Wire.read();
+    int16_t chip_gy = (Wire.read() << 8) | Wire.read();
+    int16_t chip_gz = (Wire.read() << 8) | Wire.read();
 
-    float accelX = ax / 4096.0;
-    float accelY = ay / 4096.0;
-    float accelZ = az / 4096.0;
-    float gyroX  = gx / 131.0;
-    float gyroY  = gy / 131.0;
-    float gyroZ  = gz / 131.0;
+    // Raw register reads from MPU-6050
+    // chip_ax: physical vertical axis (+1g at rest)
+    // chip_ay: physical longitudinal axis (forward)
+    // chip_az: physical lateral axis (inverted, rightward positive)
 
-    Serial.print("DATA:{\"ax\":"); Serial.print(accelX, 2);
-    Serial.print(",\"ay\":"); Serial.print(accelY, 2);
-    Serial.print(",\"az\":"); Serial.print(accelZ, 2);
-    Serial.print(",\"gx\":"); Serial.print(gyroX, 1);
-    Serial.print(",\"gy\":"); Serial.print(gyroY, 1);
-    Serial.print(",\"gz\":"); Serial.print(gyroZ, 1);
+    // ISB Footwear Coordinate Alignment:
+    // X (Anteroposterior / Forward) = +chip_ay
+    // Y (Mediolateral / Left)       = -chip_az
+    // Z (Vertical / Upward)         = +chip_ax
+    float ax_isb = (float)chip_ay / 4096.0f;
+    float ay_isb = -(float)chip_az / 4096.0f;
+    float az_isb = (float)chip_ax / 4096.0f;
+
+    // Apply identical orthogonal rotation to angular velocity (gyroscope)
+    float gx_isb = (float)chip_gy / 131.0f;
+    float gy_isb = -(float)chip_gz / 131.0f;
+    float gz_isb = (float)chip_gx / 131.0f;
+
+    Serial.print("DATA:{\"ax\":"); Serial.print(ax_isb, 2);
+    Serial.print(",\"ay\":"); Serial.print(ay_isb, 2);
+    Serial.print(",\"az\":"); Serial.print(az_isb, 2);
+    Serial.print(",\"gx\":"); Serial.print(gx_isb, 1);
+    Serial.print(",\"gy\":"); Serial.print(gy_isb, 1);
+    Serial.print(",\"gz\":"); Serial.print(gz_isb, 1);
     Serial.println("}");
   }
 
